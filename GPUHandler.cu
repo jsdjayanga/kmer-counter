@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "GPUHandler.h"
 
 __global__ void testKernel(){
