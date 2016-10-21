@@ -13,6 +13,7 @@
 
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
+#include "GPUHandler.h"
 
 KMerCounter::KMerCounter(Options* options) {
     _options = options;
@@ -32,6 +33,8 @@ void KMerCounter::Start() {
         // TODO : Pump data to GPU
         //cout << "====" << fastqData->getLineLength() << endl;
         _fileDump->dump(fastqData);
+        
+        processKMers(NULL, NULL, 0, 0);
         
         fastqData = inputFileHandler->read();
     }
