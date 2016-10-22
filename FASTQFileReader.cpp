@@ -15,10 +15,9 @@
 #include <cstring>
 #include "FASTQFileReader.h"
 
-FASTQFileReader::FASTQFileReader(string filename, int64_t fileSize, int64_t chunkSize) {
+FASTQFileReader::FASTQFileReader(string filename, int64_t fileSize) {
     this->_filename = filename;
     this->_fileSize = fileSize;
-    this->_chunkSize = chunkSize;
 
     ifstream fileStreamB;
     fileStreamB.open(_filename.c_str(), ios::ate | ios::binary);
@@ -47,20 +46,20 @@ FASTQFileReader::FASTQFileReader(const FASTQFileReader& orig) {
 FASTQFileReader::~FASTQFileReader() {
 }
 
-FASTQData* FASTQFileReader::readData() {
-    char* data = new char[_chunkSize];
+FASTQData* FASTQFileReader::readData(int64_t chunkSize) {
+    char* data = new char[chunkSize];
 
     int64_t chunk_offset = 0;
     string temp;
     string line;
     getline(_fileStream, temp);
     getline(_fileStream, line);
-    while (line.length() != 0 && chunk_offset + temp.length() < _chunkSize) {
+    while (line.length() != 0 && chunk_offset + temp.length() < chunkSize) {
         const char* cline = line.c_str();
         if (cline != NULL && line.length() > 0 && cline[0] == '+') {
             const char* cline = temp.c_str();
 
-            if (chunk_offset + temp.length() < _chunkSize) {
+            if (chunk_offset + temp.length() < chunkSize) {
                 strncpy(&data[chunk_offset], cline, temp.length());
                 chunk_offset += temp.length();
 
@@ -91,4 +90,8 @@ FASTQData* FASTQFileReader::readData() {
 
 bool FASTQFileReader::isComplete() {
     return _fileStream.tellg() + _lineLength > _fileSize;
+}
+
+int64_t FASTQFileReader::getLineLength() {
+    return _lineLength;
 }

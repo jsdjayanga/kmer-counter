@@ -27,16 +27,18 @@ KMerCounter::~KMerCounter() {
 }
 
 void KMerCounter::Start() {
-    InputFileHandler* inputFileHandler = new InputFileHandler(_options->GetInputFileDirectory(), _options->GetChunkSize());
-    FASTQData* fastqData = inputFileHandler->read();
+    InputFileHandler* inputFileHandler = new InputFileHandler(_options->GetInputFileDirectory());
+    int64_t chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(), _options->GetGpuMemoryLimit());
+    FASTQData* fastqData = inputFileHandler->read(chunkSize);
     while (fastqData != NULL) {
         // TODO : Pump data to GPU
         //cout << "====" << fastqData->getLineLength() << endl;
         _fileDump->dump(fastqData);
         
-        processKMers(NULL, NULL, 0, 0);
+        //processKMers(NULL, NULL, 0, 0);
         
-        fastqData = inputFileHandler->read();
+        chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(), _options->GetGpuMemoryLimit());
+        fastqData = inputFileHandler->read(chunkSize);
     }
 
     
@@ -45,4 +47,25 @@ void KMerCounter::Start() {
 //    for (std::list<InputFileDetails*>::iterator it = list.begin(); it != list.end(); it++) {
 //        cout << (*it)->GetFilename() << endl;
 //    }
+}
+
+int64_t KMerCounter::GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit) {
+    int64_t bytesNeededForKmer = kmerLength / 4;
+    if (kmerLength % 4 != 0) {
+        bytesNeededForKmer++;
+    }
+    
+    int64_t byteRepresentationForKmer = bytesNeededForKmer / 8;
+    if (bytesNeededForKmer % 8 != 0) {
+        byteRepresentationForKmer++;
+    }
+    byteRepresentationForKmer++; // for the k-mer count
+    byteRepresentationForKmer *= 8;
+    
+    int64_t numberOfKmers = (lineLength - kmerLength + 1);
+    int64_t memoryForAllKmers = byteRepresentationForKmer * numberOfKmers;
+    
+    int64_t possibleRecordCount = (gpuMemoryLimit - lineLength) / (memoryForAllKmers - 1);
+
+    return lineLength * possibleRecordCount;
 }

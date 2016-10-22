@@ -22,15 +22,15 @@ using namespace std;
 
 class InputFileHandler {
 public:
-    InputFileHandler(string fileDirectory, int64_t chunkSize);
+    InputFileHandler(string fileDirectory);
     InputFileHandler(const InputFileHandler& orig);
     virtual ~InputFileHandler();
     
     //list<InputFileDetails*>& getFileList();
-    FASTQData* read();
+    FASTQData* read(int64_t chunkSize);
+    int64_t getLineLength();
 private:
     string _fileDirectory;
-    int64_t _chunkSize;
     list<FASTQFileReader*> _fileReaders;
 };
 

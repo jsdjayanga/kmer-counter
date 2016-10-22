@@ -28,6 +28,8 @@ public:
 private:
     Options* _options;
     FileDump* _fileDump;
+    
+    int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
 };
 
 

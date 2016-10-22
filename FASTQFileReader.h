@@ -22,12 +22,13 @@ using namespace std;
 
 class FASTQFileReader {
 public:
-    FASTQFileReader(string filename, int64_t fileSize, int64_t chunkSize);
+    FASTQFileReader(string filename, int64_t fileSize);
     FASTQFileReader(const FASTQFileReader& orig);
     virtual ~FASTQFileReader();
     
-    FASTQData* readData();
+    FASTQData* readData(int64_t chunkSize);
     bool isComplete();
+    int64_t getLineLength();
 private:
     ifstream _fileStream;
     string _filename;

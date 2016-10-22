@@ -29,10 +29,17 @@ public:
     int64_t GetChunkSize() const;
     void SetNumberOfThreads(int64_t _numberOfThreads);
     int64_t GetNumberOfThreads() const;
+    void SetGpuMemoryLimit(int64_t _gpuMemoryLimit);
+    int64_t GetGpuMemoryLimit() const;
+    void SetKmerLength(int64_t _kmerLength);
+    int64_t GetKmerLength() const;
+    
 private:
     string  _inputFileDirectory;
     int64_t _numberOfThreads;
     int64_t _chunkSize;
+    int64_t _gpuMemoryLimit;
+    int64_t _kmerLength;
 };
 
 

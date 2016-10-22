@@ -19,9 +19,8 @@
 #include <algorithm>
 #include <string.h>
 
-InputFileHandler::InputFileHandler(string fileDirectory, int64_t chunkSize) {
+InputFileHandler::InputFileHandler(string fileDirectory) {
     this->_fileDirectory = fileDirectory;
-    this->_chunkSize = chunkSize;
 
     DIR *dir;
     struct dirent *ent;
@@ -35,7 +34,7 @@ InputFileHandler::InputFileHandler(string fileDirectory, int64_t chunkSize) {
                 string filename = _fileDirectory + "/" + ent->d_name;
                 temp.open(filename.c_str(), ios::ate | ios::binary);
 
-                FASTQFileReader* fastqFileReader = new FASTQFileReader(filename, temp.tellg(), _chunkSize);
+                FASTQFileReader* fastqFileReader = new FASTQFileReader(filename, temp.tellg());
                 _fileReaders.push_back(fastqFileReader);
             }
         }
@@ -75,11 +74,11 @@ InputFileHandler::~InputFileHandler() {
 //    return _inputFileDetails;
 //}
 
-FASTQData* InputFileHandler::read() {
+FASTQData* InputFileHandler::read(int64_t chunkSize) {
     if (!_fileReaders.empty()) {
         FASTQFileReader* fastqFileReader = _fileReaders.front();
         if (fastqFileReader != NULL) {
-            FASTQData* fastqData = fastqFileReader->readData();
+            FASTQData* fastqData = fastqFileReader->readData(chunkSize);
             if (fastqFileReader->isComplete() || fastqData->getSize() == 0) {
                 _fileReaders.pop_front();
             }
@@ -88,4 +87,14 @@ FASTQData* InputFileHandler::read() {
     } else {
         return NULL;
     }
+}
+
+int64_t InputFileHandler::getLineLength() {
+    if (!_fileReaders.empty()) {
+        FASTQFileReader* fastqFileReader = _fileReaders.front();
+        if (fastqFileReader != NULL) {
+            return fastqFileReader->getLineLength();
+        }
+    }
+    return 0;
 }
