@@ -22,11 +22,13 @@ using namespace std;
 
 class FileDump {
 public:
+	FileDump();
     FileDump(string directory);
     FileDump(const FileDump& orig);
     virtual ~FileDump();
     
     void dump(FASTQData* fastqData);
+    void dumpToFile(string filename, char* data, int64_t length);
 private:
     string _directory;
     int64_t _count;

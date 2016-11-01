@@ -18,6 +18,9 @@
 
 #include "FileDump.h"
 
+FileDump::FileDump() {
+}
+
 FileDump::FileDump(string directory) {
     this->_directory = directory;
     this->_count = 0;
@@ -35,5 +38,12 @@ void FileDump::dump(FASTQData* fastqData) {
     file << _directory << "/" << _count++;
     output.open(file.str().c_str());
     output.write(fastqData->getData(), fastqData->getSize());
+    output.close();
+}
+
+void FileDump::dumpToFile(string filename, char* data, int64_t length) {
+    ofstream output;
+    output.open(filename.c_str());
+    output.write(data, length);
     output.close();
 }
