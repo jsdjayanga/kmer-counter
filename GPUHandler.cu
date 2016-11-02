@@ -140,53 +140,58 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		cudaDeviceSynchronize();
 	}
 
-	if (debug == true) {
-		char* temp = new char[inputSize];
-		memset(temp, 0, inputSize);
-
-		char* tempFilter = new char[inputSize];
-		memset(tempFilter, 0, inputSize);
-
-		cudaMemcpy(temp, d_input, inputSize, cudaMemcpyDeviceToHost);
-		cudaMemcpy(tempFilter, d_filter, inputSize, cudaMemcpyDeviceToHost);
-
-		printf(
-				"%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
-				*(uint16_t*) &temp[0], *(uint64_t*) &temp[2],
-				*(uint64_t*) &temp[10], *(uint64_t*) &temp[18],
-				*(uint64_t*) &temp[26], *(uint64_t*) &temp[36]);
-
-		for (int i = 0; i < inputSize; i += lineLength) {
-			uint16_t* count = (uint16_t*) &temp[i];
-			printf("===============Count:%"PRIu16"  %i\n", *count, i);
-			int iterations = (*count) / 64;
-			if ((*count) % 64 > 0) {
-				iterations++;
-			}
-			for (int j = 2; j < iterations * 8; j += 8) {
-				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
-			}
-		}
-
-		for (int i = 0; i < inputSize; i += lineLength) {
-			printf("index:%i %"PRIu64", %"PRIu64", %"PRIu64"\n", i,
-					*(uint64_t*) &tempFilter[i],
-					*(uint64_t*) &tempFilter[i + 8],
-					*(uint64_t*) &tempFilter[i + 16]);
-		}
-
-//		for (int i = 0; i < inputSize; i++) {
-//			printf("%c", temp[i]);
-//		}
-
-		for (int i = 0; i < inputSize; i++) {
-			printf("%i", (int8_t)tempFilter[i]);
-		}
-		printf("\n");
-	}
+	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	cudaDeviceReset();
 
 	return 0;
 }
 
+void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,uint64_t lineLength) {
+	char* temp = new char[inputSize];
+	memset(temp, 0, inputSize);
+
+	char* tempFilter = new char[inputSize];
+	memset(tempFilter, 0, inputSize);
+
+	cudaMemcpy(temp, d_input, inputSize, cudaMemcpyDeviceToHost);
+	cudaMemcpy(tempFilter, d_filter, inputSize, cudaMemcpyDeviceToHost);
+
+	printf(
+			"%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
+			*(uint16_t*) &temp[0], *(uint64_t*) &temp[2],
+			*(uint64_t*) &temp[10], *(uint64_t*) &temp[18],
+			*(uint64_t*) &temp[26], *(uint64_t*) &temp[36]);
+
+	for (int i = 0; i < inputSize; i += lineLength) {
+		uint16_t* count = (uint16_t*) &temp[i];
+		printf("===============Count:%"PRIu16"  %i\n", *count, i);
+		int iterations = (*count) / 64;
+		if ((*count) % 64 > 0) {
+			iterations++;
+		}
+		for (int j = 2; j < iterations * 8; j += 8) {
+			printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
+		}
+		printf("index:%i %"PRIu64", %"PRIu64", %"PRIu64"\n", i,
+				*(uint64_t*) &tempFilter[i], *(uint64_t*) &tempFilter[i + 8],
+				*(uint64_t*) &tempFilter[i + 16]);
+	}
+
+	//		for (int i = 0; i < inputSize; i += lineLength) {
+	//			printf("index:%i %"PRIu64", %"PRIu64", %"PRIu64"\n", i,
+	//					*(uint64_t*) &tempFilter[i],
+	//					*(uint64_t*) &tempFilter[i + 8],
+	//					*(uint64_t*) &tempFilter[i + 16]);
+	//		}
+
+	//		for (int i = 0; i < inputSize; i++) {
+	//			printf("%c", temp[i]);
+	//		}
+
+	//		for (int i = 0; i < inputSize; i++) {
+	//			printf("%i", (int8_t)tempFilter[i]);
+	//		}
+	//		printf("\n");
+
+}

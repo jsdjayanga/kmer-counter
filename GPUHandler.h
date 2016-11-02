@@ -20,3 +20,5 @@ using namespace std;
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		int64_t lineLength);
 
+void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,uint64_t lineLength);
+
