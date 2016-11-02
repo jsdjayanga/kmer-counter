@@ -3,7 +3,7 @@
 #include "GPUHandler.h"
 
 __global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
-	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x);
+	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
 
 	uint64_t readValue = 0;
 	uint64_t filterValue = 0;
@@ -15,7 +15,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
 	for (; i < index + lineLength; i++) {
 		if (i > 0 && (i - index) % 32 == 0) {
 			int64_t readValueLocation = ((((i - index) / 32) - 1)
-					* sizeof(int64_t)) + sizeof(int16_t);
+					* sizeof(int64_t)) + sizeof(int16_t) + index;
 			//int64_t filterLocation = ((((i - index) / 32) - 1) * sizeof (int64_t));
 			memcpy(&input[readValueLocation], &readValue, sizeof(int64_t));
 			//memcpy(&filter[filterLocation], &filterValue, sizeof (int64_t));
@@ -26,7 +26,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
 
 		if (i > 0 && (i - index) % 64 == 0) {
 			int64_t filterLocation =
-					((((i - index) / 64) - 1) * sizeof(int64_t));
+					((((i - index) / 64) - 1) * sizeof(int64_t)) + index;
 			memcpy(&filter[filterLocation], &filterValue, sizeof(int64_t));
 			filterValue = 0;
 		}
@@ -87,14 +87,15 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
 		readValue <<= shiftingReadValue;
 
 		int64_t readValueLocation = ((((i - index) / 32)) * sizeof(int64_t))
-				+ sizeof(int16_t);
+				+ sizeof(int16_t) + index;
 		memcpy(&input[readValueLocation], &readValue, sizeof(int64_t));
 		readValue = 0;
 		readValueLength = 0;
 
 		uint8_t shiftingFilterValue = 64 - ((i - index) % 64);
 		filterValue <<= shiftingFilterValue;
-		int64_t filterLocation = ((((i - index) / 64)) * sizeof(int64_t));
+		int64_t filterLocation = ((((i - index) / 64)) * sizeof(int64_t))
+				+ index;
 		memcpy(&filter[filterLocation], &filterValue, sizeof(int64_t));
 		filterValue = 0;
 		filterValueLength = 0;
@@ -119,7 +120,8 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	cudaMemset(d_output, 0, 20000);
 	cudaMemset(d_filter, 0, inputSize / 2);
 
-	bitEncode<<<1, 1>>>(d_input, d_filter, lineLength);
+	int threadCount = inputSize / lineLength;
+	bitEncode<<<1, threadCount>>>(d_input, d_filter, lineLength);
 	cudaDeviceSynchronize();
 
 	if (debug == true) {
@@ -127,10 +129,13 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		memset(temp, 0, inputSize);
 
 		cudaMemcpy(temp, d_input, inputSize, cudaMemcpyDeviceToHost);
+
 		for (int i = 0; i < inputSize; i += lineLength) {
-			for (int j = 2; j <= 32; j += 8) {
-				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[j])));
-			}
+			uint16_t* count = (uint16_t*) &temp[i];
+			printf("===============Count:%i  %i\n", *count, i);
+//			for (int j = 2; j <= *count; j += 64) {
+//				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[j])));
+//			}
 		}
 
 		for (int i = 0; i < inputSize; i++) {
