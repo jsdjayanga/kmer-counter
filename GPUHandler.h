@@ -15,5 +15,8 @@
 
 #include <stdint.h>
 
-int64_t processKMers(char* input, char* result, int64_t size, int64_t lineLength);
+using namespace std;
+
+int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
+		int64_t lineLength);
 

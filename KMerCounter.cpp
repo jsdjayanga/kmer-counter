@@ -35,7 +35,7 @@ void KMerCounter::Start() {
         //cout << "====" << fastqData->getLineLength() << endl;
         _fileDump->dump(fastqData);
         
-        //processKMers(NULL, NULL, 0, 0);
+        processKMers(fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(), inputFileHandler->getLineLength());
         
         chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(), _options->GetGpuMemoryLimit());
         fastqData = inputFileHandler->read(chunkSize);
