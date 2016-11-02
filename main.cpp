@@ -23,7 +23,8 @@ using namespace std;
 Options* getOptions(int argc, char** argv) {
     Options* options = new Options();
     options->SetInputFileDirectory("/home/jayangad/data/1");
-    options->SetChunkSize(1000000);
+    options->SetChunkSize(100000000);
+    options->SetGpuMemoryLimit(100000000);
     return options;
 }
 

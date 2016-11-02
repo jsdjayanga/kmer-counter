@@ -108,7 +108,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
-	bool debug = true;
+	bool debug = false;
 
 	char* d_input;
 	char* d_output;
@@ -129,7 +129,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	}
 
 	for (int32_t ite = 0; ite <= count; ite++) {
-		bitEncode<<<1, threadCount>>>(&d_input[threadCount * lineLength * ite], d_filter, lineLength);
+		bitEncode<<<1, threadCount>>>(&d_input[threadCount * lineLength * ite], &d_filter[threadCount * lineLength/2 * ite], lineLength);
 		cudaDeviceSynchronize();
 	}
 
@@ -143,23 +143,23 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 				"%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
 				*(uint16_t*) &temp[0], *(uint64_t*) &temp[2],
 				*(uint64_t*) &temp[10], *(uint64_t*) &temp[18],
-				*(uint64_t*) &temp[26], *(uint64_t*) &temp[34]);
+				*(uint64_t*) &temp[26], *(uint64_t*) &temp[36]);
 
 		for (int i = 0; i < inputSize; i += lineLength) {
 			uint16_t* count = (uint16_t*) &temp[i];
 			printf("===============Count:%"PRIu16"  %i\n", *count, i);
-//			int iterations = (*count) / 64;
-//			if ((*count) % 64 > 0) {
-//				iterations++;
-//			}
-//			for (int j = 2; j < iterations * 8; j += 8) {
-//				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
-//			}
+			int iterations = (*count) / 64;
+			if ((*count) % 64 > 0) {
+				iterations++;
+			}
+			for (int j = 2; j < iterations * 8; j += 8) {
+				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
+			}
 		}
 
-		for (int i = 0; i < inputSize; i++) {
-			printf("%c", temp[i]);
-		}
+//		for (int i = 0; i < inputSize; i++) {
+//			printf("%c", temp[i]);
+//		}
 	}
 
 	cudaDeviceReset();
