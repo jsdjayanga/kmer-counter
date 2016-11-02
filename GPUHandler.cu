@@ -109,6 +109,28 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength,
 
 }
 
+__device__ bool checkBit(uint64_t filter, uint8_t bit) {
+	//cout << "++++++++++:" << (int32_t)bit << endl;
+	uint64_t t = 1;
+	uint64_t temp = t << (64 - bit - 1);
+	if ((temp & filter) > 0) {
+		return true;
+	}
+	return false;
+}
+
+__device__ uint64_t read64bits(char* input, int64_t index) {
+	uint64_t value = 0;
+	memcpy(&value, &input[index], sizeof(int64_t));
+	return value;
+}
+
+__global__ void extractKMers(char* input, char* bitFilter, char*output,
+		uint64_t sectionLength, int64_t kmerLength) {
+	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * sectionLength;
+
+}
+
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
@@ -119,12 +141,15 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	char* d_output;
 	char* d_filter;
 
+	uint64_t outputSize = (inputSize / lineLength) * (kmerLength / 4)
+			* (lineLength - kmerLength + 1);
+
 	cudaMalloc((void **) &d_input, inputSize);
-	cudaMalloc((void **) &d_output, inputSize);
+	cudaMalloc((void **) &d_output, outputSize);
 	cudaMalloc((void **) &d_filter, inputSize);
 
 	cudaMemcpy(d_input, input, inputSize, cudaMemcpyHostToDevice);
-	cudaMemset(d_output, 0, inputSize);
+	cudaMemset(d_output, 0, outputSize);
 	cudaMemset(d_filter, 0, inputSize);
 
 	int32_t threadCount = 256;
@@ -138,6 +163,14 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 				&d_filter[threadCount * lineLength * ite], lineLength,
 				inputSize);
 		cudaDeviceSynchronize();
+
+		extractKMers<<<1, threadCount>>>(
+				&d_input[threadCount * lineLength * ite],
+				&d_filter[threadCount * lineLength * ite],
+				&d_output[threadCount * outputSize / (inputSize / lineLength)
+						* ite], outputSize / (inputSize / lineLength),
+				kmerLength);
+		cudaDeviceSynchronize();
 	}
 
 	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
@@ -147,7 +180,8 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	return 0;
 }
 
-void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,uint64_t lineLength) {
+void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,
+		uint64_t lineLength) {
 	char* temp = new char[inputSize];
 	memset(temp, 0, inputSize);
 
