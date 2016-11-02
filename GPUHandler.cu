@@ -233,6 +233,7 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength,
 	if (kmerLength % 4 > 0) {
 		kmerStoreSize++;
 	}
+	kmerStoreSize += 4;
 	return kmerCount * kmerStoreSize * records;
 }
 
