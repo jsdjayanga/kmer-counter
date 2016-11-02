@@ -80,7 +80,8 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
 		}
 	}
 
-	memcpy(&input[index], &readValueLength, sizeof(uint16_t));
+	printf("readValueLength==============:%"PRIu16"", readValueLength);
+	memcpy(&input[i], &readValueLength, sizeof(uint16_t));
 
 	if (i > 0 && (i - index) % 64 > 0) {
 		uint8_t shiftingReadValue = (32 - ((i - index) % 32)) * 2;
@@ -113,15 +114,15 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	char* d_filter;
 
 	cudaMalloc((void **) &d_input, inputSize);
-	cudaMalloc((void **) &d_output, 20000);
+	cudaMalloc((void **) &d_output, inputSize);
 	cudaMalloc((void **) &d_filter, inputSize / 2);
 
 	cudaMemcpy(d_input, input, inputSize, cudaMemcpyHostToDevice);
-	cudaMemset(d_output, 0, 20000);
+	cudaMemset(d_output, 0, inputSize);
 	cudaMemset(d_filter, 0, inputSize / 2);
 
 	int threadCount = inputSize / lineLength;
-	bitEncode<<<1, threadCount>>>(d_input, d_filter, lineLength);
+	bitEncode<<<1, 1>>>(d_input, d_filter, lineLength);
 	cudaDeviceSynchronize();
 
 	if (debug == true) {
@@ -130,21 +131,22 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 
 		cudaMemcpy(temp, d_input, inputSize, cudaMemcpyDeviceToHost);
 
-		printf("%i : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
+		printf("%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
 				*(uint16_t*) &temp[0], *(uint64_t*) &temp[2],
 				*(uint64_t*) &temp[10], *(uint64_t*) &temp[18],
-				*(uint64_t*) &temp[26]);
+				*(uint64_t*) &temp[26], *(uint64_t*) &temp[34]);
+
 
 		for (int i = 0; i < inputSize; i += lineLength) {
 			uint16_t* count = (uint16_t*) &temp[i];
-			printf("===============Count:%i  %i\n", *count, i);
-			int iterations = (*count) / 64;
-			if ((*count) % 64 > 0) {
-				iterations++;
-			}
-			for (int j = 2; j < iterations * 8; j += 8) {
-				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
-			}
+			printf("===============Count:%"PRIu16"  %i\n", *count, i);
+//			int iterations = (*count) / 64;
+//			if ((*count) % 64 > 0) {
+//				iterations++;
+//			}
+//			for (int j = 2; j < iterations * 8; j += 8) {
+//				printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
+//			}
 		}
 
 		for (int i = 0; i < inputSize; i++) {
