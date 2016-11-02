@@ -2,8 +2,13 @@
 #include <inttypes.h>
 #include "GPUHandler.h"
 
-__global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
+__global__ void bitEncode(char* input, char* filter, int64_t lineLength,
+		int64_t upperBound) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
+
+	if (index > upperBound - lineLength) {
+		return;
+	}
 
 	uint64_t readValue = 0;
 	uint64_t filterValue = 0;
@@ -24,7 +29,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength) {
 			//filterValue = 0;
 		}
 
-		if (i > 0 && (i - index) % 64 == 0) {
+		if (i - index > 0 && (i - index) % 64 == 0) {
 			int64_t filterLocation =
 					((((i - index) / 64) - 1) * sizeof(int64_t)) + index;
 			memcpy(&filter[filterLocation], &filterValue, sizeof(int64_t));
@@ -108,7 +113,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
-	bool debug = false;
+	bool debug = true;
 
 	char* d_input;
 	char* d_output;
@@ -116,11 +121,11 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 
 	cudaMalloc((void **) &d_input, inputSize);
 	cudaMalloc((void **) &d_output, inputSize);
-	cudaMalloc((void **) &d_filter, inputSize / 2);
+	cudaMalloc((void **) &d_filter, inputSize);
 
 	cudaMemcpy(d_input, input, inputSize, cudaMemcpyHostToDevice);
 	cudaMemset(d_output, 0, inputSize);
-	cudaMemset(d_filter, 0, inputSize / 2);
+	cudaMemset(d_filter, 0, inputSize);
 
 	int32_t threadCount = 256;
 	int32_t count = inputSize / lineLength / threadCount;
@@ -129,7 +134,9 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	}
 
 	for (int32_t ite = 0; ite <= count; ite++) {
-		bitEncode<<<1, threadCount>>>(&d_input[threadCount * lineLength * ite], &d_filter[threadCount * lineLength/2 * ite], lineLength);
+		bitEncode<<<1, threadCount>>>(&d_input[threadCount * lineLength * ite],
+				&d_filter[threadCount * lineLength * ite], lineLength,
+				inputSize);
 		cudaDeviceSynchronize();
 	}
 
@@ -137,7 +144,11 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		char* temp = new char[inputSize];
 		memset(temp, 0, inputSize);
 
+		char* tempFilter = new char[inputSize];
+		memset(tempFilter, 0, inputSize);
+
 		cudaMemcpy(temp, d_input, inputSize, cudaMemcpyDeviceToHost);
+		cudaMemcpy(tempFilter, d_filter, inputSize, cudaMemcpyDeviceToHost);
 
 		printf(
 				"%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
@@ -157,9 +168,21 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 			}
 		}
 
+		for (int i = 0; i < inputSize; i += lineLength) {
+			printf("index:%i %"PRIu64", %"PRIu64", %"PRIu64"\n", i,
+					*(uint64_t*) &tempFilter[i],
+					*(uint64_t*) &tempFilter[i + 8],
+					*(uint64_t*) &tempFilter[i + 16]);
+		}
+
 //		for (int i = 0; i < inputSize; i++) {
 //			printf("%c", temp[i]);
 //		}
+
+		for (int i = 0; i < inputSize; i++) {
+			printf("%i", (int8_t)tempFilter[i]);
+		}
+		printf("\n");
 	}
 
 	cudaDeviceReset();
