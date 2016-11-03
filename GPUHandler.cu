@@ -85,7 +85,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength,
 		}
 	}
 
-	//printf("readValueLength==============:%"PRIu16"", readValueLength);
+	//printf("readValueLength==============:%"PRIu16"\n", readValueLength);
 	memcpy(&input[index], &readValueLength, sizeof(uint16_t));
 
 	if (i > 0 && (i - index) % 64 > 0) {
@@ -126,13 +126,16 @@ __device__ uint64_t read64bits(char* input, int64_t index) {
 }
 
 __global__ void extractKMers(char* input, char* bitFilter, char*output,
-		uint64_t sectionLength, int64_t kmerLength, int64_t upperBound, int64_t lineLength) {
+		uint64_t sectionLength, int64_t kmerLength, int64_t upperBound,
+		int64_t lineLength) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * sectionLength;
 	uint64_t filterIndex = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
 
-	if (index > upperBound - sectionLength) {
+	if (filterIndex > upperBound - lineLength) {
 		return;
 	}
+
+//printf("================================extract=========================================:index=%"PRIu64"\n", filterIndex);
 
 //	uint64_t* f1 = (uint64_t*) &temp[0];
 //	uint64_t* f2 = (uint64_t*) &temp[8];
@@ -142,38 +145,42 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 	bool validEntry = false;
 	int64_t lastInvalidIndex = -1;
 
-	uint16_t i1 = *(uint16_t*) &input[index];
-	uint16_t filterLengrh = i1 / 2;
+	uint16_t i1 = *(uint16_t*) &input[filterIndex];
+	uint16_t filterLength = i1 / 2;
 
-	char* encodedInput = &input[index + sizeof(uint16_t)];
+	char* encodedInput = &input[filterIndex + sizeof(uint16_t)];
 
 //	cout << "=========:filter length=" << filterLengrh << endl;
 	int64_t filterReadLength = 0;
-
+//printf("=======================b4 for loop, filterIndex=%"PRIu64", filterLength=%"PRIu64"\n", filterIndex, filterLength);
 	uint64_t outputIndex = 0;
-	uint64_t i = index;
-	for (; i < index + filterLengrh; i++) {
-		uint64_t* filter = 0;
+	//uint64_t i = filterIndex;
+	for (uint64_t i = 0; i < filterLength; i++) {
+
+//printf("=======================inside for loopindex=%"PRIu64"\n", filterIndex);
+		uint64_t filter = 0;
 		if (i == 0) {
-			filter = (uint64_t*) &bitFilter[filterIndex];
+			memcpy(&filter, &bitFilter[filterIndex], sizeof(uint64_t));
+			//filter = (uint64_t*) &bitFilter[filterIndex];
 		} else {
-			filter = (uint64_t*) &bitFilter[(((filterIndex + i) / 64) * 8)];
+			memcpy(&filter, &bitFilter[(((filterIndex + i) / 64) * 8)],
+					sizeof(uint64_t));
+			//filter = (uint64_t*) &bitFilter[(((filterIndex + i) / 64) * 8)];
 		}
 //		cout << "=====filter::::" << *filter << "|" << i << "|"
 //				<< checkBit(*filter, (uint8_t) i % 64) << endl;
 
-		if (!checkBit(*filter, (uint8_t) i % 64)) {
+		if (!checkBit(filter, (uint8_t) i % 64)) {
 			filterReadLength++;
 
 			if (filterReadLength >= kmerLength) {
 //				cout << "valid kmer" << endl;
-
+//printf("================================validkmeri=%"PRIu64", index=%"PRIu64"\n", i, filterIndex);
 				uint64_t firstByte = i - kmerLength + 1; // +1 is needed as 'i' starts with index 0
 				int64_t shifting = ((firstByte % 32)) * 2;
 
-				int64_t firstByteToReadEncodedInput = ((firstByte / 32) * 8)
-						+ index;
-
+				int64_t firstByteToReadEncodedInput = ((firstByte / 32) * 8);
+//printf("==========================================================firstByteToReadEncodedInput %"PRIu64", index=%"PRIu64"\n", firstByteToReadEncodedInput, filterIndex);
 				uint16_t kmerByteLength = kmerLength / 4;
 				uint64_t kmerByteStoreLength = kmerLength / 4;
 				if (kmerLength % 4 > 0) {
@@ -190,11 +197,11 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 
 					//memcpy(&readValue, (char*) &encodedInput[x], sizeof (uint64_t));
 					readValue1 = read64bits(encodedInput, x);
-
+//printf("==========================================================actualReadingIndex %"PRIu64", index=%"PRIu64", readValue1Ori=%"PRIu64", shifting=%"PRIu64"\n", x, filterIndex, readValue1, shifting);
 					if (shifting > 0) {
 						readValue1 <<= shifting;
 
-						if ((x + sizeof(uint64_t)) * 4 < filterLengrh) { // To avoid reading beyond the limit of bit encoded input
+						if ((x + sizeof(uint64_t)) * 4 < filterLength) { // To avoid reading beyond the limit of bit encoded input
 							readValue2 = read64bits(encodedInput,
 									x + sizeof(uint64_t));
 							readValue2 >>= (64 - shifting);
@@ -207,6 +214,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 
 					memcpy(&output[index + outputIndex], &readValue1,
 							sizeof(uint64_t));
+//printf("==========================================================readValue1 %"PRIu64", actualOutputIndex=%"PRIu64"\n", readValue1, index + outputIndex);
 					outputIndex += sizeof(uint64_t);
 
 					readValue1 = 0;
@@ -265,7 +273,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		count++;
 	}
 
-	for (int32_t ite = 0; ite <= count; ite++) {
+	for (int32_t ite = 0; ite < count; ite++) {
 		bitEncode<<<1, threadCount>>>(&d_input[threadCount * lineLength * ite],
 				&d_filter[threadCount * lineLength * ite], lineLength,
 				inputSize);
@@ -276,7 +284,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 				&d_filter[threadCount * lineLength * ite],
 				&d_output[threadCount * outputSize / (inputSize / lineLength)
 						* ite], outputSize / (inputSize / lineLength),
-				kmerLength, outputSize, lineLength);
+				kmerLength, inputSize, lineLength);
 		cudaDeviceSynchronize();
 	}
 
