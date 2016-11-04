@@ -37,7 +37,7 @@ void KMerCounter::Start() {
 		//cout << "====" << fastqData->getLineLength() << endl;
 		_fileDump->dump(fastqData);
 
-		if (fastqData->getSize() > 0 && fastqData->getSize() > inputFileHandler->getLineLength()) {
+		if (fastqData->getSize() > 0 && fastqData->getSize() >= inputFileHandler->getLineLength()) {
 			processKMers(fastqData->getData(), _options->GetKmerLength(),
 					fastqData->getSize(), inputFileHandler->getLineLength());
 		}
