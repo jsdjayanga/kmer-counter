@@ -13,6 +13,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <string.h>
 
 #include "FASTQFileReader.h"
 #include "Options.h"
@@ -21,25 +22,31 @@
 using namespace std;
 
 Options* getOptions(int argc, char** argv) {
-    Options* options = new Options();
-    options->SetInputFileDirectory("/home/jayangad/data/1");
-    options->SetChunkSize(100000000);
-    options->SetGpuMemoryLimit(100000000);
-    return options;
+	Options* options = new Options();
+	options->SetInputFileDirectory("/home/jayangad/data/1");
+	options->SetChunkSize(100000000);
+	options->SetGpuMemoryLimit(100000000);
+
+	for (int i = 0; i < argc; i++) {
+		if (strncmp(argv[i], "kmerLength=", 11) == 0) {
+			options->SetKmerLength(strtoull(argv[i] + 11, NULL, 10));
+			cout << "Updating KmerLength=" << options->GetKmerLength() << endl;
+		}
+	}
+
+	return options;
 }
 
 /*
  * 
  */
 int main(int argc, char** argv) {
-    cout << "### kmer-counter application ###" << endl;
-    
-    Options* options = getOptions(argc, argv);
-    KMerCounter* kmerCounter = new KMerCounter(options);
-    kmerCounter->Start();
-    
-    return 0;
+	cout << "### kmer-counter application ###" << endl;
+
+	Options* options = getOptions(argc, argv);
+	KMerCounter* kmerCounter = new KMerCounter(options);
+	kmerCounter->Start();
+
+	return 0;
 }
-
-
 
