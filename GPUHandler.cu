@@ -163,7 +163,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 			memcpy(&filter, &bitFilter[filterIndex], sizeof(uint64_t));
 			//filter = (uint64_t*) &bitFilter[filterIndex];
 		} else {
-			memcpy(&filter, &bitFilter[(((filterIndex + i) / 64) * 8)],
+			memcpy(&filter, &bitFilter[((i / 64) * 8) + filterIndex],
 					sizeof(uint64_t));
 			//filter = (uint64_t*) &bitFilter[(((filterIndex + i) / 64) * 8)];
 		}
