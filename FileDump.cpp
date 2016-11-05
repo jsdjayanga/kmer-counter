@@ -22,8 +22,8 @@ FileDump::FileDump() {
 }
 
 FileDump::FileDump(string directory) {
-    this->_directory = directory;
-    this->_count = 0;
+	this->_directory = directory;
+	this->_count = 0;
 }
 
 FileDump::FileDump(const FileDump& orig) {
@@ -33,17 +33,18 @@ FileDump::~FileDump() {
 }
 
 void FileDump::dump(FASTQData* fastqData) {
-    ofstream output;
-    ostringstream file;
-    file << _directory << "/" << _count++;
-    output.open(file.str().c_str());
-    output.write(fastqData->getData(), fastqData->getSize());
-    output.close();
+	ofstream output;
+	ostringstream file;
+	file << _directory << "/" << _count++;
+	output.open(file.str().c_str());
+	output.write(fastqData->getData(), fastqData->getSize());
+	output.close();
 }
 
 void FileDump::dumpToFile(string filename, char* data, int64_t length) {
-    ofstream output;
-    output.open(filename.c_str());
-    output.write(data, length);
-    output.close();
+	ofstream output;
+	output.open(filename.c_str());
+	output.write(data, length);
+	output.close();
 }
+
