@@ -136,9 +136,6 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output, uint64_t
 //	uint64_t* f3 = (uint64_t*) &temp[16];
 //	cout << *f1 << "|" << *f2 << "|" << *f3 << endl;
 
-	bool validEntry = false;
-	int64_t lastInvalidIndex = -1;
-
 	uint16_t i1 = *(uint16_t*) &input[filterIndex];
 	uint16_t filterLength = i1 / 2;
 
@@ -244,7 +241,6 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength, int64_t kmer
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
-	bool debug = true;
 
 	char* d_input;
 	char* d_output;
@@ -282,10 +278,13 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 		cudaDeviceSynchronize();
 	}
 
-	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
+	// Sort step
+
+
+	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
-	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
+	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	cudaDeviceReset();
 

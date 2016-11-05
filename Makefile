@@ -15,7 +15,7 @@ kmer-counter: cuda
 	g++ -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp GPUHandler.o -L/usr/local/cuda/lib64 -lcuda -lcudart
 
 cuda:
-	nvcc -g -G -c GPUHandler.cu 
+	nvcc -arch=sm_35 -rdc=true -g -G -c GPUHandler.cu 
 
 #### Clean target deletes all generated files ####
 clean: 
