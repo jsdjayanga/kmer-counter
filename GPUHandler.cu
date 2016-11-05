@@ -178,6 +178,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 //printf("================================validkmeri=%"PRIu64", index=%"PRIu64"\n", i, filterIndex);
 				uint64_t firstByte = i - kmerLength + 1; // +1 is needed as 'i' starts with index 0
 				int64_t shifting = ((firstByte % 32)) * 2;
+				int64_t rightShifting = (32 - (kmerLength % 32)) * 2;
 
 				int64_t firstByteToReadEncodedInput = ((firstByte / 32) * 8);
 //printf("==========================================================firstByteToReadEncodedInput %"PRIu64", index=%"PRIu64"\n", firstByteToReadEncodedInput, filterIndex);
@@ -211,6 +212,12 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 
 //					cout << "=============================AAAAAA:" << x << "|"
 //							<< readValue1 << "|" << index + outputIndex << endl;
+
+					if (x + sizeof(uint64_t)
+							>= firstByteToReadEncodedInput + kmerByteLength) {
+						readValue1 >>= rightShifting;
+						readValue1 <<= rightShifting;
+					}
 
 					memcpy(&output[index + outputIndex], &readValue1,
 							sizeof(uint64_t));
@@ -353,10 +360,11 @@ void printKmerResult(char* d_output, uint64_t outputSize, uint64_t kmerLength) {
 
 	cudaMemcpy(temp, d_output, outputSize, cudaMemcpyDeviceToHost);
 
-	uint64_t kmerByteLength = kmerLength / 4;
-	if (kmerLength % 4 > 0) {
-		kmerByteLength += 8;
+	uint64_t kmerByteLength = kmerLength / 32;
+	if (kmerLength % 32 > 0) {
+		kmerByteLength += 1;
 	}
+	kmerByteLength *= 8;
 
 	for (int i = 0; i < outputSize; i += kmerByteLength + 4) {
 		int j = 0;
