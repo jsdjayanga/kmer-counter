@@ -214,7 +214,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 //							<< readValue1 << "|" << index + outputIndex << endl;
 
 					if (x + sizeof(uint64_t)
-							>= firstByteToReadEncodedInput + kmerByteLength) {
+							> firstByteToReadEncodedInput + kmerByteLength) {
 						readValue1 >>= rightShifting;
 						readValue1 <<= rightShifting;
 					}
@@ -244,10 +244,11 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength,
 		int64_t kmerLength) {
 	uint64_t records = inputSize / lineLength;
 	uint64_t kmerCount = lineLength - kmerLength + 1;
-	uint64_t kmerStoreSize = kmerLength / 4;
-	if (kmerLength % 4 > 0) {
+	uint64_t kmerStoreSize = kmerLength / 32;
+	if (kmerLength % 32 > 0) {
 		kmerStoreSize++;
 	}
+	kmerStoreSize *= 8;
 	kmerStoreSize += 4;
 	return kmerCount * kmerStoreSize * records;
 }
@@ -297,7 +298,8 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 
 	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
-	printKmerResult(d_output, outputSize, kmerLength);
+	//printKmerResult(d_output, outputSize, kmerLength);
+	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	cudaDeviceReset();
 
@@ -374,4 +376,60 @@ void printKmerResult(char* d_output, uint64_t outputSize, uint64_t kmerLength) {
 		printf("%"PRIu32"\n", *(uint32_t*) &temp[i + j]);
 	}
 
+}
+
+void dumpKmersWithLengthToConsole(char* d_data, int64_t lineLength,
+		int64_t outputSize, uint64_t kmerLenght) {
+
+	char* data = new char[outputSize];
+	memset(data, 0, outputSize);
+
+	cudaMemcpy(data, d_data, outputSize, cudaMemcpyDeviceToHost);
+
+	int entryLength = kmerLenght / 32;
+	if (kmerLenght % 32 > 0) {
+		entryLength++;
+	}
+	entryLength *= 8;
+	entryLength += 4;
+
+	for (int64_t index = 0; index < outputSize; index += entryLength) {
+		int kmerBytes = entryLength - 4;
+		int i = index;
+		for (; i < index + kmerBytes; i += 8) {
+			uint64_t value = 0;
+			memcpy(&value, &data[i], sizeof(uint64_t));
+			printDNABase(value);
+			printf(" %" PRIu64 " ", value);
+		}
+
+		uint32_t count = 0;
+		memcpy(&count, &data[i], sizeof(uint32_t));
+		printf(" %u\n", count);
+	}
+}
+
+void printDNABase(uint64_t value) {
+	for (int64_t index = 0; index < 64; index += 2) {
+		uint64_t temp = value << index;
+		temp >>= 62;
+
+		switch (temp) {
+		case 0:
+			printf("A");
+			continue;
+		case 1:
+			printf("C");
+			continue;
+		case 2:
+			printf("G");
+			continue;
+		case 3:
+			printf("T");
+			continue;
+		default:
+			printf("-");
+			continue;
+		}
+	}
 }
