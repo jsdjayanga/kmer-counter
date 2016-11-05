@@ -2,8 +2,7 @@
 #include <inttypes.h>
 #include "GPUHandler.h"
 
-__global__ void bitEncode(char* input, char* filter, int64_t lineLength,
-		int64_t upperBound) {
+__global__ void bitEncode(char* input, char* filter, int64_t lineLength, int64_t upperBound) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
 
 	if (index > upperBound - lineLength) {
@@ -19,8 +18,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength,
 	int64_t i = index;
 	for (; i < index + lineLength; i++) {
 		if (i - index > 0 && (i - index) % 32 == 0) {
-			int64_t readValueLocation = ((((i - index) / 32) - 1)
-					* sizeof(int64_t)) + sizeof(int16_t) + index;
+			int64_t readValueLocation = ((((i - index) / 32) - 1) * sizeof(int64_t)) + sizeof(int16_t) + index;
 			//int64_t filterLocation = ((((i - index) / 32) - 1) * sizeof (int64_t));
 			memcpy(&input[readValueLocation], &readValue, sizeof(int64_t));
 			//memcpy(&filter[filterLocation], &filterValue, sizeof (int64_t));
@@ -30,8 +28,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength,
 		}
 
 		if (i - index > 0 && (i - index) % 64 == 0) {
-			int64_t filterLocation =
-					((((i - index) / 64) - 1) * sizeof(int64_t)) + index;
+			int64_t filterLocation = ((((i - index) / 64) - 1) * sizeof(int64_t)) + index;
 			memcpy(&filter[filterLocation], &filterValue, sizeof(int64_t));
 			filterValue = 0;
 		}
@@ -92,16 +89,14 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength,
 		uint8_t shiftingReadValue = (32 - ((i - index) % 32)) * 2;
 		readValue <<= shiftingReadValue;
 
-		int64_t readValueLocation = ((((i - index) / 32)) * sizeof(int64_t))
-				+ sizeof(int16_t) + index;
+		int64_t readValueLocation = ((((i - index) / 32)) * sizeof(int64_t)) + sizeof(int16_t) + index;
 		memcpy(&input[readValueLocation], &readValue, sizeof(int64_t));
 		readValue = 0;
 		readValueLength = 0;
 
 		uint8_t shiftingFilterValue = 64 - ((i - index) % 64);
 		filterValue <<= shiftingFilterValue;
-		int64_t filterLocation = ((((i - index) / 64)) * sizeof(int64_t))
-				+ index;
+		int64_t filterLocation = ((((i - index) / 64)) * sizeof(int64_t)) + index;
 		memcpy(&filter[filterLocation], &filterValue, sizeof(int64_t));
 		filterValue = 0;
 		filterValueLength = 0;
@@ -125,9 +120,8 @@ __device__ uint64_t read64bits(char* input, int64_t index) {
 	return value;
 }
 
-__global__ void extractKMers(char* input, char* bitFilter, char*output,
-		uint64_t sectionLength, int64_t kmerLength, int64_t upperBound,
-		int64_t lineLength) {
+__global__ void extractKMers(char* input, char* bitFilter, char*output, uint64_t sectionLength, int64_t kmerLength,
+		int64_t upperBound, int64_t lineLength) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * sectionLength;
 	uint64_t filterIndex = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
 
@@ -163,8 +157,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 			memcpy(&filter, &bitFilter[filterIndex], sizeof(uint64_t));
 			//filter = (uint64_t*) &bitFilter[filterIndex];
 		} else {
-			memcpy(&filter, &bitFilter[((i / 64) * 8) + filterIndex],
-					sizeof(uint64_t));
+			memcpy(&filter, &bitFilter[((i / 64) * 8) + filterIndex], sizeof(uint64_t));
 			//filter = (uint64_t*) &bitFilter[(((filterIndex + i) / 64) * 8)];
 		}
 //		cout << "=====filter::::" << *filter << "|" << i << "|"
@@ -192,9 +185,8 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 				uint64_t readValue1 = 0;
 				uint64_t readValue2 = 0;
 
-				for (int64_t x = firstByteToReadEncodedInput;
-						x < firstByteToReadEncodedInput + kmerByteLength; x +=
-								sizeof(uint64_t)) {
+				for (int64_t x = firstByteToReadEncodedInput; x < firstByteToReadEncodedInput + kmerByteLength; x +=
+						sizeof(uint64_t)) {
 
 					//memcpy(&readValue, (char*) &encodedInput[x], sizeof (uint64_t));
 					readValue1 = read64bits(encodedInput, x);
@@ -203,8 +195,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 						readValue1 <<= shifting;
 
 						if ((x + sizeof(uint64_t)) * 4 < filterLength) { // To avoid reading beyond the limit of bit encoded input
-							readValue2 = read64bits(encodedInput,
-									x + sizeof(uint64_t));
+							readValue2 = read64bits(encodedInput, x + sizeof(uint64_t));
 							readValue2 >>= (64 - shifting);
 						}
 						readValue1 |= readValue2;
@@ -213,14 +204,12 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 //					cout << "=============================AAAAAA:" << x << "|"
 //							<< readValue1 << "|" << index + outputIndex << endl;
 
-					if (x + sizeof(uint64_t)
-							> firstByteToReadEncodedInput + kmerByteLength) {
+					if (x + sizeof(uint64_t) > firstByteToReadEncodedInput + kmerByteLength) {
 						readValue1 >>= rightShifting;
 						readValue1 <<= rightShifting;
 					}
 
-					memcpy(&output[index + outputIndex], &readValue1,
-							sizeof(uint64_t));
+					memcpy(&output[index + outputIndex], &readValue1, sizeof(uint64_t));
 //printf("==========================================================readValue1 %"PRIu64", actualOutputIndex=%"PRIu64"\n", readValue1, index + outputIndex);
 					outputIndex += sizeof(uint64_t);
 
@@ -240,8 +229,7 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output,
 	}
 }
 
-uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength,
-		int64_t kmerLength) {
+uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength, int64_t kmerLength) {
 	uint64_t records = inputSize / lineLength;
 	uint64_t kmerCount = lineLength - kmerLength + 1;
 	uint64_t kmerStoreSize = kmerLength / 32;
@@ -253,8 +241,7 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength,
 	return kmerCount * kmerStoreSize * records;
 }
 
-int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
-		int64_t lineLength) {
+int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 	bool debug = true;
@@ -263,8 +250,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	char* d_output;
 	char* d_filter;
 
-	uint64_t outputSize = calculateOutputSize(inputSize, lineLength,
-			kmerLength);
+	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
 	printf("Outpout size =============%"PRIu64"\n", outputSize);
 
 	cudaMalloc((void **) &d_input, inputSize);
@@ -291,7 +277,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 				&d_input[threadCount * lineLength * ite],
 				&d_filter[threadCount * lineLength * ite],
 				&d_output[threadCount * outputSize / (inputSize / lineLength)
-						* ite], outputSize / (inputSize / lineLength),
+				* ite], outputSize / (inputSize / lineLength),
 				kmerLength, inputSize, lineLength);
 		cudaDeviceSynchronize();
 	}
@@ -306,8 +292,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 	return 0;
 }
 
-void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,
-		uint64_t lineLength) {
+void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize, uint64_t lineLength) {
 	char* temp = new char[inputSize];
 	memset(temp, 0, inputSize);
 
@@ -317,11 +302,9 @@ void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,
 	cudaMemcpy(temp, d_input, inputSize, cudaMemcpyDeviceToHost);
 	cudaMemcpy(tempFilter, d_filter, inputSize, cudaMemcpyDeviceToHost);
 
-	printf(
-			"%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n",
-			*(uint16_t*) &temp[0], *(uint64_t*) &temp[2],
-			*(uint64_t*) &temp[10], *(uint64_t*) &temp[18],
-			*(uint64_t*) &temp[26], *(uint64_t*) &temp[36]);
+	printf("%"PRIu16" : %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n", *(uint16_t*) &temp[0],
+			*(uint64_t*) &temp[2], *(uint64_t*) &temp[10], *(uint64_t*) &temp[18], *(uint64_t*) &temp[26],
+			*(uint64_t*) &temp[36]);
 
 	for (int i = 0; i < inputSize; i += lineLength) {
 		uint16_t* count = (uint16_t*) &temp[i];
@@ -333,9 +316,8 @@ void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize,
 		for (int j = 2; j < iterations * 8; j += 8) {
 			printf("%d : %"PRIu64"\n", j, *((uint64_t*) (&temp[i + j])));
 		}
-		printf("index:%i %"PRIu64", %"PRIu64", %"PRIu64"\n", i,
-				*(uint64_t*) &tempFilter[i], *(uint64_t*) &tempFilter[i + 8],
-				*(uint64_t*) &tempFilter[i + 16]);
+		printf("index:%i %"PRIu64", %"PRIu64", %"PRIu64"\n", i, *(uint64_t*) &tempFilter[i],
+				*(uint64_t*) &tempFilter[i + 8], *(uint64_t*) &tempFilter[i + 16]);
 	}
 
 	//		for (int i = 0; i < inputSize; i += lineLength) {
@@ -378,8 +360,7 @@ void printKmerResult(char* d_output, uint64_t outputSize, uint64_t kmerLength) {
 
 }
 
-void dumpKmersWithLengthToConsole(char* d_data, int64_t lineLength,
-		int64_t outputSize, uint64_t kmerLenght) {
+void dumpKmersWithLengthToConsole(char* d_data, int64_t lineLength, int64_t outputSize, uint64_t kmerLenght) {
 
 	char* data = new char[outputSize];
 	memset(data, 0, outputSize);
