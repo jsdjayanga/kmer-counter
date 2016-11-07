@@ -284,7 +284,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
-	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
+	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	cudaDeviceReset();
 
