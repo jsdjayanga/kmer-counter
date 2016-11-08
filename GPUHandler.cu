@@ -326,6 +326,8 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 
+	char* h_output;
+
 	char* d_input;
 	char* d_output;
 	char* d_filter;
@@ -333,13 +335,16 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
 	printf("Output size =============%"PRIu64"\n", outputSize);
 
-	cudaMalloc((void **) &d_input, inputSize);
-	cudaMalloc((void **) &d_output, outputSize);
-	cudaMalloc((void **) &d_filter, inputSize);
+	h_output = (char *) malloc(outputSize);
+	memset(h_output, 0, outputSize);
 
-	cudaMemcpy(d_input, input, inputSize, cudaMemcpyHostToDevice);
-	cudaMemset(d_output, 0, outputSize);
-	cudaMemset(d_filter, 0, inputSize);
+	cudaErrorCheck(cudaMalloc((void ** ) &d_input, inputSize));
+	cudaErrorCheck(cudaMalloc((void ** ) &d_output, outputSize));
+	cudaErrorCheck(cudaMalloc((void ** ) &d_filter, inputSize));
+
+	cudaErrorCheck(cudaMemcpy(d_input, input, inputSize, cudaMemcpyHostToDevice));
+	cudaErrorCheck(cudaMemset(d_output, 0, outputSize));
+	cudaErrorCheck(cudaMemset(d_filter, 0, inputSize));
 
 	int32_t threadCount = 512;
 	int32_t count = inputSize / lineLength / threadCount;
@@ -351,7 +356,8 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 		bitEncode<<<1, threadCount>>>(&d_input[threadCount * lineLength * ite],
 				&d_filter[threadCount * lineLength * ite], lineLength,
 				inputSize);
-		cudaDeviceSynchronize();
+		cudaErrorCheck(cudaPeekAtLastError());
+		cudaErrorCheck(cudaDeviceSynchronize());
 
 		extractKMers<<<1, threadCount>>>(
 				&d_input[threadCount * lineLength * ite],
@@ -359,7 +365,8 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 				&d_output[threadCount * outputSize / (inputSize / lineLength)
 				* ite], outputSize / (inputSize / lineLength),
 				kmerLength, inputSize, lineLength);
-		cudaDeviceSynchronize();
+		cudaErrorCheck(cudaPeekAtLastError());
+		cudaErrorCheck(cudaDeviceSynchronize());
 	}
 
 	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
@@ -368,13 +375,16 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 
 	// Sort step
 	sortKmers(d_output, kmerLength, outputSize);
+	cudaErrorCheck(cudaPeekAtLastError());
+	cudaErrorCheck(cudaDeviceSynchronize());
+
+	cudaErrorCheck(cudaMemcpy(h_output, d_output, outputSize, cudaMemcpyDeviceToHost));
 
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
 	printf("After Sort\n");
-	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
-
+	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
 
 	cudaFree(d_input);
 	cudaFree(d_output);
@@ -450,6 +460,30 @@ void printKmerResult(char* d_output, uint64_t outputSize, uint64_t kmerLength) {
 		printf("%"PRIu32"\n", *(uint32_t*) &temp[i + j]);
 	}
 
+}
+
+void dumpKmersWithLengthToConsoleHost(char* data, int64_t lineLength, int64_t outputSize, uint64_t kmerLenght) {
+	int entryLength = kmerLenght / 32;
+	if (kmerLenght % 32 > 0) {
+		entryLength++;
+	}
+	entryLength *= 8;
+	entryLength += 4;
+
+	for (int64_t index = 0; index < outputSize; index += entryLength) {
+		int kmerBytes = entryLength - 4;
+		int i = index;
+		for (; i < index + kmerBytes; i += 8) {
+			uint64_t value = 0;
+			memcpy(&value, &data[i], sizeof(uint64_t));
+			printDNABase(value);
+			printf(" %" PRIu64 " ", value);
+		}
+
+		uint32_t count = 0;
+		memcpy(&count, &data[i], sizeof(uint32_t));
+		printf(" %u\n", count);
+	}
 }
 
 void dumpKmersWithLengthToConsole(char* d_data, int64_t lineLength, int64_t outputSize, uint64_t kmerLenght) {
