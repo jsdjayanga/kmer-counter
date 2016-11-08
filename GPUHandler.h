@@ -17,6 +17,13 @@
 
 using namespace std;
 
+#pragma pack(1)
+struct KMer32
+{
+    uint64_t kmer;
+    uint32_t count;
+};
+
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize,
 		int64_t lineLength);
 

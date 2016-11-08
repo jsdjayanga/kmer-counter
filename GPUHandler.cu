@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
+#include <thrust/device_ptr.h>
+#include <thrust/sort.h>
 #include "GPUHandler.h"
 
 __global__ void bitEncode(char* input, char* filter, int64_t lineLength, int64_t upperBound) {
@@ -238,6 +240,14 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength, int64_t kmer
 	return kmerCount * kmerStoreSize * records;
 }
 
+class KMer32Comparator {
+public:
+	__device__ __host__
+	bool operator()(const KMer32 &c1, const KMer32 &c2) {
+		return c1.kmer < c2.kmer;
+	}
+};
+
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
@@ -278,12 +288,24 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 		cudaDeviceSynchronize();
 	}
 
-	// Sort step
+	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
+			kmerLength);
+	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
+	// Sort step
+	uint64_t kmerStoreSize = kmerLength / 32;
+	if (kmerLength % 32 > 0) {
+		kmerStoreSize++;
+	}
+	kmerStoreSize *= 8;
+	kmerStoreSize += 4;
+	thrust::device_ptr<KMer32> d_Kmers((KMer32*) d_output);
+	thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
 
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
+	printf("After Sort\n");
 	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	cudaDeviceReset();
