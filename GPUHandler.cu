@@ -375,6 +375,10 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	printf("After Sort\n");
 	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
+
+	cudaFree(d_input);
+	cudaFree(d_output);
+	cudaFree(d_filter);
 	cudaDeviceReset();
 
 	return 0;
