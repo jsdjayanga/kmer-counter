@@ -244,9 +244,101 @@ class KMer32Comparator {
 public:
 	__device__ __host__
 	bool operator()(const KMer32 &c1, const KMer32 &c2) {
-		return c1.kmer < c2.kmer;
+		return c1.kmer[0] < c2.kmer[0];
 	}
 };
+
+class KMer64Comparator {
+public:
+	__device__ __host__
+	bool operator()(const KMer64 &c1, const KMer64 &c2) {
+//		if (c1.kmer[0] < c2.kmer[0]) {
+//			return true;
+//		} else if (c1.kmer[0] > c2.kmer[0]) {
+//			return false;
+//		} else if (c1.kmer[1] < c2.kmer[1]) {
+//			return true;
+//		}
+//		return false;
+		for (int32_t index = 0; index < (sizeof(c1.kmer) / sizeof(*c1.kmer)); index++) {
+			if (c1.kmer[index] < c2.kmer[index]) {
+				return true;
+			} else if (c1.kmer[index] > c2.kmer[index]) {
+				return false;
+			}
+		}
+		return false;
+	}
+};
+
+class KMer96Comparator {
+public:
+	__device__ __host__
+	bool operator()(const KMer96 &c1, const KMer96 &c2) {
+		for (int32_t index = 0; index < (sizeof(c1.kmer) / sizeof(*c1.kmer)); index++) {
+			if (c1.kmer[index] < c2.kmer[index]) {
+				return true;
+			} else if (c1.kmer[index] > c2.kmer[index]) {
+				return false;
+			}
+		}
+		return false;
+	}
+};
+
+class KMer128Comparator {
+public:
+	__device__ __host__
+	bool operator()(const KMer128 &c1, const KMer128 &c2) {
+//		if (c1.kmer[0] < c2.kmer[0]) {
+//			return true;
+//		} else if (c1.kmer[1] < c2.kmer[1]) {
+//			return true;
+//		} else if (c1.kmer[2] < c2.kmer[2]) {
+//			return true;
+//		} else if (c1.kmer[3] < c2.kmer[3]) {
+//			return true;
+//		}
+//		return false;
+		for (int32_t index = 0; index < (sizeof(c1.kmer) / sizeof(*c1.kmer)); index++) {
+			if (c1.kmer[index] < c2.kmer[index]) {
+				return true;
+			} else if (c1.kmer[index] > c2.kmer[index]) {
+				return false;
+			}
+		}
+		return false;
+	}
+};
+
+void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize) {
+	uint64_t kmerStoreSize = kmerLength / 32;
+	if (kmerLength % 32 > 0) {
+		kmerStoreSize++;
+	}
+	kmerStoreSize *= 8;
+	kmerStoreSize += 4;
+
+	if (kmerLength <= 32) {
+		printf("invoking ==== KMer32Comparator");
+		thrust::device_ptr<KMer32> d_Kmers((KMer32*) d_output);
+		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
+	} else if (kmerLength <= 64) {
+		printf("invoking ==== KMer64Comparator");
+		thrust::device_ptr<KMer64> d_Kmers((KMer64*) d_output);
+		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer64Comparator());
+	} else if (kmerLength <= 96) {
+		printf("invoking ==== KMer96Comparator");
+		thrust::device_ptr<KMer96> d_Kmers((KMer96*) d_output);
+		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer96Comparator());
+	} else if (kmerLength <= 128) {
+		printf("invoking ==== KMer128Comparator");
+		thrust::device_ptr<KMer128> d_Kmers((KMer128*) d_output);
+		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer128Comparator());
+	} else {
+		printf("Sorting is not supported for kmers with length higher than %"PRIu64"\n", kmerLength);
+	}
+}
 
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
@@ -293,14 +385,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	// Sort step
-	uint64_t kmerStoreSize = kmerLength / 32;
-	if (kmerLength % 32 > 0) {
-		kmerStoreSize++;
-	}
-	kmerStoreSize *= 8;
-	kmerStoreSize += 4;
-	thrust::device_ptr<KMer32> d_Kmers((KMer32*) d_output);
-	thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
+	sortKmers(d_output, kmerLength, outputSize);
 
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
