@@ -24,13 +24,17 @@ using namespace std;
 Options* getOptions(int argc, char** argv) {
 	Options* options = new Options();
 	options->SetInputFileDirectory("/home/jayangad/data/1");
-	options->SetChunkSize(100000000);
 	options->SetGpuMemoryLimit(100000000);
 
 	for (int i = 0; i < argc; i++) {
 		if (strncmp(argv[i], "kmerLength=", 11) == 0) {
 			options->SetKmerLength(strtoull(argv[i] + 11, NULL, 10));
 			cout << "Updating KmerLength=" << options->GetKmerLength() << endl;
+		}
+
+		if (strncmp(argv[i], "gpuMemoryLimit=", 15) == 0) {
+			options->SetGpuMemoryLimit(strtoull(argv[i] + 15, NULL, 10));
+			cout << "Updating Gpu Memory Limit=" << options->GetGpuMemoryLimit() << endl;
 		}
 	}
 

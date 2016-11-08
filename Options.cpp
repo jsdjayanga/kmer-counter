@@ -15,7 +15,6 @@
 
 Options::Options() {
     this->_numberOfThreads = 0;
-    this->_chunkSize = 10000;
     this->_gpuMemoryLimit = 10000000;
     this->_kmerLength = 32;
 }
@@ -32,14 +31,6 @@ void Options::SetInputFileDirectory(string inputFileDirectory) {
 
 string Options::GetInputFileDirectory() const {
     return _inputFileDirectory;
-}
-
-void Options::SetChunkSize(int64_t _chunkSize) {
-    this->_chunkSize = _chunkSize;
-}
-
-int64_t Options::GetChunkSize() const {
-    return _chunkSize;
 }
 
 void Options::SetNumberOfThreads(int64_t _numberOfThreads) {
