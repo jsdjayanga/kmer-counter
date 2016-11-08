@@ -252,14 +252,6 @@ class KMer64Comparator {
 public:
 	__device__ __host__
 	bool operator()(const KMer64 &c1, const KMer64 &c2) {
-//		if (c1.kmer[0] < c2.kmer[0]) {
-//			return true;
-//		} else if (c1.kmer[0] > c2.kmer[0]) {
-//			return false;
-//		} else if (c1.kmer[1] < c2.kmer[1]) {
-//			return true;
-//		}
-//		return false;
 		for (int32_t index = 0; index < (sizeof(c1.kmer) / sizeof(*c1.kmer)); index++) {
 			if (c1.kmer[index] < c2.kmer[index]) {
 				return true;
@@ -290,16 +282,6 @@ class KMer128Comparator {
 public:
 	__device__ __host__
 	bool operator()(const KMer128 &c1, const KMer128 &c2) {
-//		if (c1.kmer[0] < c2.kmer[0]) {
-//			return true;
-//		} else if (c1.kmer[1] < c2.kmer[1]) {
-//			return true;
-//		} else if (c1.kmer[2] < c2.kmer[2]) {
-//			return true;
-//		} else if (c1.kmer[3] < c2.kmer[3]) {
-//			return true;
-//		}
-//		return false;
 		for (int32_t index = 0; index < (sizeof(c1.kmer) / sizeof(*c1.kmer)); index++) {
 			if (c1.kmer[index] < c2.kmer[index]) {
 				return true;
@@ -349,7 +331,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	char* d_filter;
 
 	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
-	printf("Outpout size =============%"PRIu64"\n", outputSize);
+	printf("Output size =============%"PRIu64"\n", outputSize);
 
 	cudaMalloc((void **) &d_input, inputSize);
 	cudaMalloc((void **) &d_output, outputSize);
@@ -359,7 +341,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	cudaMemset(d_output, 0, outputSize);
 	cudaMemset(d_filter, 0, inputSize);
 
-	int32_t threadCount = 256;
+	int32_t threadCount = 512;
 	int32_t count = inputSize / lineLength / threadCount;
 	if ((inputSize / lineLength) % threadCount > 0) {
 		count++;
@@ -382,7 +364,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 
 	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
 			kmerLength);
-	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
+	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	// Sort step
 	sortKmers(d_output, kmerLength, outputSize);
