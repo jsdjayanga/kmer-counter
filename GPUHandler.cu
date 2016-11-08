@@ -322,7 +322,8 @@ void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize) {
 	}
 }
 
-int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength) {
+int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
+		FileDump& fileDump) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 
@@ -384,7 +385,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	cudaErrorCheck(cudaDeviceSynchronize());
 
 	cudaErrorCheck(cudaMemcpy(h_output, d_output, outputSize, cudaMemcpyDeviceToHost));
-
+	fileDump.dumpKmersToFile(readId, h_output, outputSize);
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);

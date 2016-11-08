@@ -27,19 +27,21 @@ KMerCounter::~KMerCounter() {
 }
 
 void KMerCounter::Start() {
+	uint32_t readId = 0;
 	InputFileHandler* inputFileHandler = new InputFileHandler(
 			_options->GetInputFileDirectory());
 	int64_t chunkSize = GetChunkSize(inputFileHandler->getLineLength(),
 			_options->GetKmerLength(), _options->GetGpuMemoryLimit());
 	FASTQData* fastqData = inputFileHandler->read(chunkSize);
 	while (fastqData != NULL) {
+		readId++;
 		// TODO : Pump data to GPU
 		//cout << "====" << fastqData->getLineLength() << endl;
-		_fileDump->dump(fastqData);
+		//_fileDump->dump(fastqData);
 
 		if (fastqData->getSize() > 0 && fastqData->getSize() >= inputFileHandler->getLineLength()) {
 			processKMers(fastqData->getData(), _options->GetKmerLength(),
-					fastqData->getSize(), inputFileHandler->getLineLength());
+					fastqData->getSize(), inputFileHandler->getLineLength(), readId, *_fileDump);
 		}
 
 		chunkSize = GetChunkSize(inputFileHandler->getLineLength(),

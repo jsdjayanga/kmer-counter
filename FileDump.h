@@ -29,6 +29,7 @@ public:
     
     void dump(FASTQData* fastqData);
     void dumpToFile(string filename, char* data, int64_t length);
+    void dumpKmersToFile(uint32_t id, char* data, int64_t length);
 private:
     string _directory;
     int64_t _count;

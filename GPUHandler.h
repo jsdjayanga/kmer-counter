@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
+#include "FileDump.h"
 
 using namespace std;
 
@@ -50,7 +51,8 @@ struct KMer128 {
 	uint32_t count;
 };
 
-int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength);
+int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
+		FileDump& fileDump);
 
 void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize, uint64_t lineLength);
 void printKmerResult(char* d_output, uint64_t outputSize, uint64_t kmerLength);
