@@ -52,7 +52,7 @@ char* KMerFileReader::peekKmer() {
         return _cache + _cachePos;
     } else {
         readData(0, _cacheSize);
-        if (_fileStream.gcount() > _recordLength) {
+        if (_cachePos < _availableLength) {
             return _cache + _cachePos;
         }
     }
@@ -64,7 +64,7 @@ char* KMerFileReader::peekNextKmer() {
         return _cache + _cachePos + _recordLength;
     } else {
         readData(0, _cacheSize);
-        if (_fileStream.gcount() > _recordLength) {
+        if (_cachePos < _availableLength - _recordLength) {
             return _cache + _cachePos;
         }
     }
@@ -85,6 +85,8 @@ char* KMerFileReader::popKmer() {
 
 void KMerFileReader::readData(uint64_t cacheStartPos, uint64_t size) {
     _fileStream.read(_cache + cacheStartPos, size);
-    _availableLength = _fileStream.gcount() + _cacheSize - _cachePos;
-    _cachePos = 0;
+    if (_fileStream.gcount() > 0) {
+        _availableLength = _fileStream.gcount() + _cacheSize - _cachePos;
+        _cachePos = 0;
+    }
 }

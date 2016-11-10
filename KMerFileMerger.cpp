@@ -53,9 +53,11 @@ void KMerFileMerger::merge() {
         lowers.push_back(reader);
 
         KMerFileReader* firstReader = lowers[0];
+        char* firstKmer = readWithLocalCount(*firstReader, _kmerLength);
         for (uint32_t index = 1; index < lowers.size(); index++) {
             KMerFileReader* kmerReader = lowers[index];
-            ((KMer32*) firstReader->peekKmer())->count = ((KMer32*) firstReader->peekKmer())->count + ((KMer32*) kmerReader->peekKmer())->count;
+            char* secondKmer = readWithLocalCount(*kmerReader, _kmerLength);
+            ((KMer32*) firstKmer)->count = ((KMer32*) firstKmer)->count + ((KMer32*) secondKmer)->count;
             kmerReader->popKmer();
             if (kmerReader->peekKmer() == NULL) {
                 kmerFileReaders.remove(kmerReader);
@@ -63,7 +65,7 @@ void KMerFileMerger::merge() {
         }
         lowers.clear();
 
-        writeToFile(firstReader->popKmer());
+        writeToFile(firstKmer);
 
         if (firstReader->peekKmer() == NULL) {
             kmerFileReaders.remove(firstReader);
