@@ -27,7 +27,7 @@ KMerCounter::KMerCounter(Options* options) {
     	kmerStoreSize *= 8;
     	kmerStoreSize += 4;
 
-	_kMerFileMerger = new KMerFileMerger("/tmp/1", "/tmp/1/output.bin", kmerStoreSize, 200, kmerLength);
+	_kMerFileMerger = new KMerFileMerger("/tmp/1", "/tmp/2/output.bin", kmerStoreSize, 2000, kmerLength);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
