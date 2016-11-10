@@ -19,6 +19,8 @@ public:
 	list<KMerFileReader*>& getKmerFileList();
 private:
 	string _fileDirectory;
+	uint64_t _recordLength;
+	uint64_t _recordCount;
 	list<KMerFileReader*> _kmerFileReaders;
 };
 
