@@ -19,6 +19,7 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include "FileDump.h"
+#include "KMerSizes.h"
 
 using namespace std;
 
@@ -30,26 +31,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 			exit(code);
 	}
 }
-
-struct KMer32 {
-	uint64_t kmer[1];
-	uint32_t count;
-};
-
-struct KMer64 {
-	uint64_t kmer[2];
-	uint32_t count;
-};
-
-struct KMer96 {
-	uint64_t kmer[3];
-	uint32_t count;
-};
-
-struct KMer128 {
-	uint64_t kmer[4];
-	uint32_t count;
-};
 
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump);

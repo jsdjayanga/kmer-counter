@@ -18,6 +18,7 @@
 #include "FASTQFileReader.h"
 #include "Options.h"
 #include "KMerCounter.h"
+#include "KMerPrinter.h"
 
 using namespace std;
 
@@ -46,6 +47,12 @@ Options* getOptions(int argc, char** argv) {
  */
 int main(int argc, char** argv) {
 	cout << "### kmer-counter application ###" << endl;
+
+	if (argc > 0 && strncmp(argv[1], "print", 5) == 0) {
+		KMerPrinter* kMerPrinter = new KMerPrinter(argv[2], atoll(argv[3]));
+		kMerPrinter->print();
+		return 0;
+	}
 
 	Options* options = getOptions(argc, argv);
 	KMerCounter* kmerCounter = new KMerCounter(options);

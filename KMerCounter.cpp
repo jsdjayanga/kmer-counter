@@ -18,6 +18,16 @@
 KMerCounter::KMerCounter(Options* options) {
 	_options = options;
 	_fileDump = new FileDump("/tmp/1");
+
+    uint64_t kmerLength = options->GetKmerLength();
+    uint64_t kmerStoreSize = kmerLength / 32;
+    	if (kmerLength % 32 > 0) {
+    		kmerStoreSize++;
+    	}
+    	kmerStoreSize *= 8;
+    	kmerStoreSize += 4;
+
+	_kMerFileMerger = new KMerFileMerger("/tmp/1", "/tmp/1/output.bin", kmerStoreSize, 200, kmerLength);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -48,6 +58,10 @@ void KMerCounter::Start() {
 				_options->GetKmerLength(), _options->GetGpuMemoryLimit());
 		fastqData = inputFileHandler->read(chunkSize);
 	}
+
+	// Count KMers with Merged Files
+	_kMerFileMerger->merge();
+
 
 //    list<InputFileDetails*>& list = inputFileHandler->getFileList();
 

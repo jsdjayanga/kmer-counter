@@ -13,9 +13,10 @@
 
 #pragma once
 
+#include <iostream>
 #include "Options.h"
 #include "FileDump.h"
-#include <iostream>
+#include "KMerFileMerger.h"
 
 using namespace std;
 
@@ -28,6 +29,7 @@ public:
 private:
     Options* _options;
     FileDump* _fileDump;
+    KMerFileMerger* _kMerFileMerger;
     
     int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
 };
