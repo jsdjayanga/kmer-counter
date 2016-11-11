@@ -3,6 +3,7 @@
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 #include "GPUHandler.h"
+#include "KMerCounterUtils.h"
 
 __global__ void bitEncode(char* input, char* filter, int64_t lineLength, int64_t upperBound) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
@@ -23,6 +24,7 @@ __global__ void bitEncode(char* input, char* filter, int64_t lineLength, int64_t
 			int64_t readValueLocation = ((((i - index) / 32) - 1) * sizeof(int64_t)) + sizeof(int16_t) + index;
 			//int64_t filterLocation = ((((i - index) / 32) - 1) * sizeof (int64_t));
 			memcpy(&input[readValueLocation], &readValue, sizeof(int64_t));
+			DEBUG("Value of ReadValue = ", readValue);
 			//memcpy(&filter[filterLocation], &filterValue, sizeof (int64_t));
 			readValue = 0;
 
