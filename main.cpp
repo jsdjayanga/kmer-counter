@@ -48,8 +48,8 @@ Options* getOptions(int argc, char** argv) {
 int main(int argc, char** argv) {
 	cout << "### kmer-counter application ###" << endl;
 
-	if (argc > 1 && strncmp(argv[1], "print", 5) == 0) {
-		KMerPrinter* kMerPrinter = new KMerPrinter(argv[2], atoll(argv[3]));
+	if (argc == 5 && strncmp(argv[1], "print", 5) == 0) {
+		KMerPrinter* kMerPrinter = new KMerPrinter(argv[2], argv[3], atoll(argv[4]));
 		kMerPrinter->print();
 		return 0;
 	}
