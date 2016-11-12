@@ -52,7 +52,7 @@ void FileDump::dumpKmersToFile(uint32_t id, char* data, int64_t length) {
 	ofstream output;
 	ostringstream file;
 	file << _directory << "/" << id;
-	output.open(file.str().c_str());
+	output.open(file.str().c_str(), ios:: binary);
 	output.write(data, length);
 	output.close();
 }
