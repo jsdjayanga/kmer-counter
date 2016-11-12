@@ -324,6 +324,41 @@ void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize) {
 	}
 }
 
+//uint64_t validRecordSearch(const char* h_output, uint64_t start, uint64_t end, uint64_t kmerStoreSize) {
+//	uint64_t mid = (end + start) / 2;
+//
+//	if (start > end) {
+//		return (end + 1) * kmerStoreSize;
+//	}
+//
+//        printf("start:%"PRIu64", mid:%"PRIu64", end:%"PRIu64" \n", start, mid, end);
+//
+//	if ((*(uint32_t*)(h_output + (mid * kmerStoreSize) + kmerStoreSize - sizeof(uint32_t))) > 0) {
+//		return validRecordSearch(h_output, start, mid - 1, kmerStoreSize);
+//	} else {
+//		return validRecordSearch(h_output, mid + 1, end, kmerStoreSize);
+//	}
+//}
+
+//uint64_t getStartOfValidRecords(const char* h_output, int64_t kmerLength, uint64_t outputSize) {
+//	// TODO Check this logic
+//	uint64_t kmerStoreSize = kmerLength / 32;
+//	if (kmerLength % 32 > 0) {
+//		kmerStoreSize++;
+//	}
+//	kmerStoreSize *= 8;
+//	kmerStoreSize += 4;
+////
+////	return validRecordSearch(h_output, 0, outputSize / kmerStoreSize, kmerStoreSize);
+//
+//	for (int64_t index = 0; index < outputSize; index += kmerStoreSize) {
+//		if ((*(uint32_t*)(h_output + index + kmerStoreSize - sizeof(uint32_t))) > 0) {
+//			return index;
+//		}
+//	}
+//	return outputSize;
+//}
+
 int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
@@ -364,7 +399,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 				inputSize);
 		cudaErrorCheck(cudaPeekAtLastError());
 		cudaErrorCheck(cudaDeviceSynchronize());
-
+//printf("=========================ite %i\n", ite);
 		extractKMers<<<blockCount, threadCount>>>(
 				&d_input[threadCount * lineLength * ite],
 				&d_filter[threadCount * lineLength * ite],
@@ -379,6 +414,7 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 
 	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
 			kmerLength);
+
 	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	// Sort step
@@ -387,12 +423,18 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	cudaErrorCheck(cudaDeviceSynchronize());
 
 	cudaErrorCheck(cudaMemcpy(h_output, d_output, outputSize, cudaMemcpyDeviceToHost));
+	//uint64_t validRecordStartPoint = getStartOfValidRecords(h_output, kmerLength, outputSize);
+
+//	for (uint64_t ind = 0; ind < outputSize; ind += 12) {
+//		printf("====test==%"PRIu64", %u\n", *(uint64_t*)(h_output + ind), *(uint32_t*)(h_output + ind + 8));
+//	}
+
 	fileDump.dumpKmersToFile(readId, h_output, outputSize);
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
 	printf("After Sort\n");
-	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
+//	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
 
 	free(h_output);
 	cudaFree(d_input);
