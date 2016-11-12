@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <cstring>
+#include <inttypes.h>
 #include "KMerFileMerger.h"
 #include "KMerFileHandler.h"
 #include "FileDump.h"
@@ -50,6 +51,8 @@ void KMerFileMerger::merge() {
                 reader = currentRader;
             }
         }
+
+//        printf("===========lowe value=========kmer %"PRIu64", reader=%"PRIu64"\n", ((KMer32*)reader->peekKmer())->kmer[0], reader);
         lowers.push_back(reader);
 
         KMerFileReader* firstReader = lowers[0];
@@ -84,12 +87,14 @@ void KMerFileMerger::merge() {
 
 bool KMerFileMerger::checkLessThan(char* lhs, char* rhs, uint64_t kmerLength) {
     if (kmerLength <= 32) {
+//    	printf("===========checkLessThan=========lhs %"PRIu64", rhs=%"PRIu64"\n", ((KMer32*) lhs)->kmer[0], ((KMer32*) rhs)->kmer[0]);
         return ((KMer32*) lhs)->kmer[0] < ((KMer32*) rhs)->kmer[0];
     }
 }
 
 bool KMerFileMerger::checkEquals(char* lhs, char* rhs, uint64_t kmerLength) {
     if (kmerLength <= 32) {
+//    	printf("===========checkEquals=========lhs %"PRIu64", rhs=%"PRIu64"\n", ((KMer32*) lhs)->kmer[0], ((KMer32*) rhs)->kmer[0]);
         return ((KMer32*) lhs)->kmer[0] == ((KMer32*) rhs)->kmer[0];
     }
 }
