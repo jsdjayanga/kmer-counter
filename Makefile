@@ -12,10 +12,10 @@ all: kmer-counter
 
 ## Target: kmer-counter
 kmer-counter: cuda
-	g++ -DDEBUG_BUILD -I /usr/local/cuda/include/ -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp KMerFileHandler.cpp KMerFileReader.cpp KMerFileMerger.cpp KMerPrinter.cpp GPUHandler.o -L/usr/local/cuda/lib64 -lcuda -lcudart
+	g++ -DDEBUG_BUILD -I /usr/local/cuda/include/ -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp KMerFileHandler.cpp KMerFileReader.cpp KMerFileMerger.cpp KMerPrinter.cpp GPUHandler.o -L/usr/local/cuda/lib64  -lcudart
 
 cuda:
-	nvcc -DDEBUG_BUILD -g -G -c GPUHandler.cu 
+	nvcc -gencode arch=compute_20,code=sm_20 -DDEBUG_BUILD -g -G -c GPUHandler.cu 
 
 #### Clean target deletes all generated files ####
 clean: 
