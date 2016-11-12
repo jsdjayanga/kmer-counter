@@ -10,7 +10,6 @@
 #include <list>
 #include "KMerFileReader.h"
 #include "KMerFileHandler.h"
-#include "KMerSizes.h"
 
 using namespace std;
 
@@ -32,12 +31,10 @@ private:
 	uint64_t _writeBufferSize;
 	uint64_t _writeLength;
 
-	bool checkLessThan(char* lhs, char* rhs, uint64_t kmerLength);
-	bool checkEquals(char* lhs, char* rhs, uint64_t kmerLength);
-	char* readWithLocalCount(KMerFileReader& kMerFileReader, uint64_t kmerLength);
+	bool checkLessThan(char* lhs, char* rhs, uint64_t kmerStoreSize);
+	bool checkEquals(char* lhs, char* rhs, uint64_t kmerStoreSize);
+	char* readWithLocalCount(KMerFileReader& kMerFileReader, uint64_t kmerStoreSize);
 	void writeToFile(char* record);
 	void writeToFile();
-
-	void add32Mers(char* first, char* second);
 };
 
