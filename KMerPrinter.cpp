@@ -54,7 +54,7 @@ void KMerPrinter::print() {
 					uint64_t value = 0;
 					memcpy(&value, &_data[i], sizeof(uint64_t));
 					printKmer(value);
-					printf(" %"PRIu64" ", value);
+					//printf(" %"PRIu64" ", value);
 				}
 
 				uint32_t count = 0;
