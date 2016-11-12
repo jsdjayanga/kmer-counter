@@ -50,10 +50,17 @@ void KMerFileMerger::merge() {
 
 		for (++it; it != kmerFileReaders.end(); ++it) {
 			KMerFileReader* currentRader = *it;
+
+//			printf("================= currentReaderKM=%"PRIu64", ReaderKM=%"PRIu64", lessThan=%d\n",
+//					*(uint64_t*) currentRader->peekKmer(), *(uint64_t*) reader->peekKmer(),
+//					*(uint64_t*) currentRader->peekKmer() < *(uint64_t*) reader->peekKmer());
+
 			if (checkLessThan((*currentRader).peekKmer(), (*reader).peekKmer(), kmerStoreSize)) {
+//				printf("===================Less than\n");
 				reader = currentRader;
 				lowers.clear();
 			} else if (checkEquals((*currentRader).peekKmer(), (*reader).peekKmer(), kmerStoreSize)) {
+//				printf("===================Equals========\n");
 				lowers.push_back(reader);
 				reader = currentRader;
 			}
@@ -62,6 +69,8 @@ void KMerFileMerger::merge() {
 //        printf("===========lowe value=========kmer %"PRIu64", reader=%"PRIu64"\n", ((KMer32*)reader->peekKmer())->kmer[0], reader);
 		lowers.push_back(reader);
 
+//		printf("====================Selection Done=======Lowers Count = %i\n", lowers.size());
+
 		KMerFileReader* firstReader = lowers[0];
 		char* firstKmer = readWithLocalCount(*firstReader, kmerStoreSize);
 		for (uint32_t index = 1; index < lowers.size(); index++) {
@@ -69,9 +78,8 @@ void KMerFileMerger::merge() {
 			char* secondKmer = readWithLocalCount(*kmerReader, kmerStoreSize);
 			//((KMer32*) firstKmer)->count = ((KMer32*) firstKmer)->count + ((KMer32*) secondKmer)->count;
 
-			*(uint32_t*)(firstKmer + kmerStoreSize - sizeof(uint32_t)) =
-								*(uint32_t*)(firstKmer + kmerStoreSize - sizeof(uint32_t)) +
-								*(uint32_t*)(secondKmer + kmerStoreSize - sizeof(uint32_t));
+			*(uint32_t*) (firstKmer + kmerStoreSize - sizeof(uint32_t)) = *(uint32_t*) (firstKmer + kmerStoreSize
+					- sizeof(uint32_t)) + *(uint32_t*) (secondKmer + kmerStoreSize - sizeof(uint32_t));
 
 			kmerReader->popKmer();
 			if (kmerReader->peekKmer() == NULL) {
@@ -99,8 +107,12 @@ void KMerFileMerger::merge() {
 
 bool KMerFileMerger::checkLessThan(char* lhs, char* rhs, uint64_t kmerStoreSize) {
 	for (int32_t index = 0; index < kmerStoreSize - sizeof(uint32_t); index += sizeof(uint64_t)) {
+//		printf("================= lhs=%"PRIu64", rhs=%"PRIu64"\n", *(uint64_t*) (lhs + index),
+//				*(uint64_t*) (rhs + index));
 		if (*((uint64_t*) (lhs + index)) < *((uint64_t*) (rhs + index))) {
 			return true;
+		} else if (*((uint64_t*) (lhs + index)) > *((uint64_t*) (rhs + index))) {
+			return false;
 		}
 	}
 	return false;
@@ -109,10 +121,12 @@ bool KMerFileMerger::checkLessThan(char* lhs, char* rhs, uint64_t kmerStoreSize)
 bool KMerFileMerger::checkEquals(char* lhs, char* rhs, uint64_t kmerStoreSize) {
 	for (int32_t index = 0; index < kmerStoreSize - sizeof(uint32_t); index += sizeof(uint64_t)) {
 		if (*((uint64_t*) (lhs + index)) == *((uint64_t*) (rhs + index))) {
-			return true;
+			continue;
+		} else {
+			return false;
 		}
 	}
-	return false;
+	return true;
 }
 
 char* KMerFileMerger::readWithLocalCount(KMerFileReader& kMerFileReader, uint64_t kmerStoreSize) {
@@ -120,9 +134,9 @@ char* KMerFileMerger::readWithLocalCount(KMerFileReader& kMerFileReader, uint64_
 		if (kMerFileReader.peekNextKmer() != NULL
 				&& checkEquals(kMerFileReader.peekKmer(), kMerFileReader.peekNextKmer(), kmerStoreSize)) {
 			//add32Mers(kMerFileReader.peekKmer(), kMerFileReader.peekNextKmer());
-			*(uint32_t*)(kMerFileReader.peekNextKmer() + kmerStoreSize - sizeof(uint32_t)) =
-					*(uint32_t*)(kMerFileReader.peekNextKmer() + kmerStoreSize - sizeof(uint32_t)) +
-					*(uint32_t*)(kMerFileReader.peekKmer() + kmerStoreSize - sizeof(uint32_t));
+			*(uint32_t*) (kMerFileReader.peekNextKmer() + kmerStoreSize - sizeof(uint32_t)) =
+					*(uint32_t*) (kMerFileReader.peekNextKmer() + kmerStoreSize - sizeof(uint32_t))
+							+ *(uint32_t*) (kMerFileReader.peekKmer() + kmerStoreSize - sizeof(uint32_t));
 			kMerFileReader.popKmer();
 		} else {
 			return kMerFileReader.popKmer();
