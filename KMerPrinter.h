@@ -14,11 +14,12 @@ using namespace std;
 
 class KMerPrinter {
 public:
-	KMerPrinter(string filename, uint64_t kmerlength);
+	KMerPrinter(string filename, string outputFilename, uint64_t kmerlength);
 	virtual ~KMerPrinter();
 	void print();
 private:
-	string _filename;
+	string _inputFilename;
+	string _outputFilename;
 	uint64_t _kmerlength;
 	uint64_t _kmerStorelength;
 	uint64_t _chunkSize;
