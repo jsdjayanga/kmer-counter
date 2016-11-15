@@ -51,7 +51,7 @@ Options* getOptions(int argc, char** argv) {
 		}
 
 		if (strncmp(argv[i], "outputFile=", 11) == 0) {
-			options->setTempFileLocation(argv[i] + 11);
+			options->setOutputFile(argv[i] + 11);
 			cout << "Updating Output File='" << options->getOutputFile() << "'" << endl;
 		}
 	}
