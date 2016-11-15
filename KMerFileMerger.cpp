@@ -81,7 +81,7 @@ void KMerFileMerger::merge() {
 			*(uint32_t*) (firstKmer + kmerStoreSize - sizeof(uint32_t)) = *(uint32_t*) (firstKmer + kmerStoreSize
 					- sizeof(uint32_t)) + *(uint32_t*) (secondKmer + kmerStoreSize - sizeof(uint32_t));
 
-			kmerReader->popKmer();
+			//kmerReader->popKmer();
 			if (kmerReader->peekKmer() == NULL) {
 				kmerFileReaders.remove(kmerReader);
 			}
