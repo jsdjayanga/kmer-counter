@@ -17,7 +17,7 @@
 
 KMerCounter::KMerCounter(Options* options) {
 	_options = options;
-	_fileDump = new FileDump("/tmp/1");
+	_fileDump = new FileDump(_options->getTempFileLocation());
 
 	uint64_t kmerLength = options->GetKmerLength();
 	uint64_t kmerStoreSize = kmerLength / 32;
@@ -27,7 +27,7 @@ KMerCounter::KMerCounter(Options* options) {
 	kmerStoreSize *= 8;
 	kmerStoreSize += 4;
 
-	_kMerFileMerger = new KMerFileMerger("/tmp/1", "/tmp/2/output.bin", kmerStoreSize, 2000, kmerLength);
+	_kMerFileMerger = new KMerFileMerger(_options->getTempFileLocation(), _options->getOutputFile(), kmerStoreSize, 2000, kmerLength);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {

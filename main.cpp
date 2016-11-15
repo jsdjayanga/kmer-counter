@@ -26,6 +26,8 @@ Options* getOptions(int argc, char** argv) {
 	Options* options = new Options();
 	options->SetInputFileDirectory("/home/jayangad/data/1");
 	options->SetGpuMemoryLimit(100000000);
+	options->setTempFileLocation("/tmp/1");
+	options->setOutputFile("/tmp/2/output.bin");
 
 	for (int i = 0; i < argc; i++) {
 		if (strncmp(argv[i], "kmerLength=", 11) == 0) {
@@ -36,6 +38,21 @@ Options* getOptions(int argc, char** argv) {
 		if (strncmp(argv[i], "gpuMemoryLimit=", 15) == 0) {
 			options->SetGpuMemoryLimit(strtoull(argv[i] + 15, NULL, 10));
 			cout << "Updating Gpu Memory Limit=" << options->GetGpuMemoryLimit() << endl;
+		}
+
+		if (strncmp(argv[i], "inputFileLocation=", 18) == 0) {
+			options->SetInputFileDirectory(argv[i] + 18);
+			cout << "Updating Input File Location='" << options->GetInputFileDirectory() << "'" << endl;
+		}
+
+		if (strncmp(argv[i], "tempFileLocation=", 17) == 0) {
+			options->setTempFileLocation(argv[i] + 17);
+			cout << "Updating Temp File Location='" << options->getTempFileLocation() << "'" << endl;
+		}
+
+		if (strncmp(argv[i], "outputFile=", 11) == 0) {
+			options->setTempFileLocation(argv[i] + 11);
+			cout << "Updating Output File='" << options->getOutputFile() << "'" << endl;
 		}
 	}
 
