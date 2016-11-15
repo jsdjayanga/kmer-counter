@@ -23,6 +23,7 @@ FASTQData::FASTQData(const FASTQData& orig) {
 }
 
 FASTQData::~FASTQData() {
+	delete[] _data;
 }
 
 //void FASTQData::read() {
