@@ -1,169 +1,135 @@
 /*
- * KMerFileMerger.cpp
- *
- *  Created on: Nov 10, 2016
- *      Author: jayanga
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+/* 
+ * File:   KMerFileMerger.cpp
+ * Author: jayanga
+ * 
+ * Created on November 16, 2016, 2:24 PM
  */
 
 #include <vector>
-#include <cstring>
-#include <inttypes.h>
+#include <iostream>
+#include <string.h>
 #include "KMerFileMerger.h"
-#include "KMerFileHandler.h"
-#include "FileDump.h"
 
-KMerFileMerger::KMerFileMerger(string inputDirectory, string outputFilename, uint64_t recordLength,
-		uint64_t recordCount, uint64_t kmerLength) {
-	this->_inputDirectory = inputDirectory;
-	this->_outputFilename = outputFilename;
-	this->_recordLength = recordLength;
-	this->_recordCount = recordCount;
-	this->_kmerLength = kmerLength;
-	this->_writeBufferSize = recordLength * recordCount * 100;
-	this->_writeBuffer = new char[this->_writeBufferSize];
-	this->_writeLength = 0;
-	this->_kMerFileHandler = new KMerFileHandler(this->_inputDirectory, this->_recordLength, this->_recordCount);
+KMerFileMerger::KMerFileMerger(list<string> inputFiles, string outputFile, uint64_t kmerLength) {
+    
+    _kmerStoreLength = kmerLength / 32;
+    if (kmerLength % 32 > 0) {
+        _kmerStoreLength++;
+    }
+    _kmerStoreLength *= 8;
+    _kmerStoreLength += 4;
+    
+    for (std::list<string>::iterator it = inputFiles.begin(); it != inputFiles.end(); ++it) {
+        _sortedFileList.push_back(new SortedKMerFile(*it, kmerLength));
+    }
+    
+    this->_outputFilename = outputFile;
+    
+    this->_writeLength = 0;
+    this->_writeBufferSize = _kmerStoreLength * 100000;
+    this->_writeBuffer = new char[this->_writeBufferSize];
+}
 
+KMerFileMerger::KMerFileMerger(const KMerFileMerger& orig) {
 }
 
 KMerFileMerger::~KMerFileMerger() {
-	// TODO Auto-generated destructor stub
+    for (list<SortedKMerFile*>::iterator it = _processedSortedFileList.begin(); it != _processedSortedFileList.end(); ++it) {
+        delete *it;
+    }
+    delete[] _writeBuffer;
 }
 
-void KMerFileMerger::merge() {
+void KMerFileMerger::Merge() {
+    vector<SortedKMerFile*> lowers;
+    while (!_sortedFileList.empty()) {
+        std::list<SortedKMerFile*>::iterator it = _sortedFileList.begin();
+        SortedKMerFile* sortedKmerFile = *it;
 
-	list<KMerFileReader*>& kmerFileReaders = this->_kMerFileHandler->getKmerFileList();
+        for (++it; it != _sortedFileList.end(); ++it) {
+            SortedKMerFile* currentSortedKmerFile = *it;
 
-	vector<KMerFileReader*> lowers;
-	uint32_t fileCount = kmerFileReaders.size();
+            if (CheckLessThan(currentSortedKmerFile->ReadKmer(), sortedKmerFile->ReadKmer(), _kmerStoreLength)) {
+                sortedKmerFile = currentSortedKmerFile;
+                lowers.clear();
+            } else if (CheckEquals(currentSortedKmerFile->ReadKmer(), sortedKmerFile->ReadKmer(), _kmerStoreLength)) {
+                lowers.push_back(sortedKmerFile);
+                sortedKmerFile = currentSortedKmerFile;
+            }
+        }
+        lowers.push_back(sortedKmerFile);
 
-	uint64_t kmerStoreSize = _kmerLength / 32;
-	if (_kmerLength % 32 > 0) {
-		kmerStoreSize++;
-	}
-	kmerStoreSize *= 8;
-	kmerStoreSize += 4;
+        SortedKMerFile* firstReader = lowers[0];
+        char* firstKmer = firstReader->ReadKmer();
+        firstReader->PopKmer();
+        for (uint32_t index = 1; index < lowers.size(); index++) {
+            SortedKMerFile* kmerReader = lowers[index];
+            char* secondKmer = kmerReader->ReadKmer();
+            kmerReader->PopKmer();
+            *(uint32_t*) (firstKmer + _kmerStoreLength - sizeof (uint32_t)) = *(uint32_t*) (firstKmer + _kmerStoreLength
+                    - sizeof (uint32_t)) + *(uint32_t*) (secondKmer + _kmerStoreLength - sizeof (uint32_t));
 
-	while (kmerFileReaders.size() > 0) {
-		std::list<KMerFileReader*>::iterator it = kmerFileReaders.begin();
-		KMerFileReader* reader = *it;
+            if (kmerReader->ReadKmer() == NULL) {
+                _processedSortedFileList.push_back(kmerReader);
+                _sortedFileList.remove(kmerReader);
+            }
+        }
+        lowers.clear();
 
-		for (++it; it != kmerFileReaders.end(); ++it) {
-			KMerFileReader* currentRader = *it;
+        WriteToFile(firstKmer);
+        
+//        PrintKmer(*(uint64_t*) firstKmer);
+//        cout << " " << *(uint64_t*) firstKmer << " " << *(uint32_t*) (firstKmer + 8) << endl;
 
-//			printf("================= currentReaderKM=%"PRIu64", ReaderKM=%"PRIu64", lessThan=%d\n",
-//					*(uint64_t*) currentRader->peekKmer(), *(uint64_t*) reader->peekKmer(),
-//					*(uint64_t*) currentRader->peekKmer() < *(uint64_t*) reader->peekKmer());
-
-			if (checkLessThan((*currentRader).peekKmer(), (*reader).peekKmer(), kmerStoreSize)) {
-//				printf("===================Less than\n");
-				reader = currentRader;
-				lowers.clear();
-			} else if (checkEquals((*currentRader).peekKmer(), (*reader).peekKmer(), kmerStoreSize)) {
-//				printf("===================Equals========\n");
-				lowers.push_back(reader);
-				reader = currentRader;
-			}
-		}
-
-//        printf("===========lowe value=========kmer %"PRIu64", reader=%"PRIu64"\n", ((KMer32*)reader->peekKmer())->kmer[0], reader);
-		lowers.push_back(reader);
-
-//		printf("====================Selection Done=======Lowers Count = %i\n", lowers.size());
-
-		KMerFileReader* firstReader = lowers[0];
-		char* firstKmer = readWithLocalCount(*firstReader, kmerStoreSize);
-		for (uint32_t index = 1; index < lowers.size(); index++) {
-			KMerFileReader* kmerReader = lowers[index];
-			char* secondKmer = readWithLocalCount(*kmerReader, kmerStoreSize);
-			//((KMer32*) firstKmer)->count = ((KMer32*) firstKmer)->count + ((KMer32*) secondKmer)->count;
-
-			*(uint32_t*) (firstKmer + kmerStoreSize - sizeof(uint32_t)) = *(uint32_t*) (firstKmer + kmerStoreSize
-					- sizeof(uint32_t)) + *(uint32_t*) (secondKmer + kmerStoreSize - sizeof(uint32_t));
-
-			//kmerReader->popKmer();
-			if (kmerReader->peekKmer() == NULL) {
-				kmerFileReaders.remove(kmerReader);
-			}
-		}
-		lowers.clear();
-
-		writeToFile(firstKmer);
-
-		if (firstReader->peekKmer() == NULL) {
-			kmerFileReaders.remove(firstReader);
-		}
-
-		// TODO : Remove Test Codes ==============================
-//        FileDump* fileDump = new FileDump("/tmp/mydata.dump");
-//        fileDump->dumpToConsole2(_writeBuffer, 32, _writeLength);
-//        printf("==========================================================\n");
-		//========================================================
-
-	}
-
-	writeToFile();
+        if (firstReader->ReadKmer() == NULL) {
+            _processedSortedFileList.push_back(firstReader);
+            _sortedFileList.remove(firstReader);
+        }
+    }
+    WriteToFile();
 }
 
-bool KMerFileMerger::checkLessThan(char* lhs, char* rhs, uint64_t kmerStoreSize) {
-	for (int32_t index = 0; index < kmerStoreSize - sizeof(uint32_t); index += sizeof(uint64_t)) {
-//		printf("================= lhs=%"PRIu64", rhs=%"PRIu64"\n", *(uint64_t*) (lhs + index),
-//				*(uint64_t*) (rhs + index));
-		if (*((uint64_t*) (lhs + index)) < *((uint64_t*) (rhs + index))) {
-			return true;
-		} else if (*((uint64_t*) (lhs + index)) > *((uint64_t*) (rhs + index))) {
-			return false;
-		}
-	}
-	return false;
+bool KMerFileMerger::CheckLessThan(char* lhs, char* rhs, uint64_t kmerStoreLength) {
+    for (int32_t index = 0; index < kmerStoreLength - sizeof (uint32_t); index += sizeof (uint64_t)) {
+        if (*((uint64_t*) (lhs + index)) < *((uint64_t*) (rhs + index))) {
+            return true;
+        } else if (*((uint64_t*) (lhs + index)) > *((uint64_t*) (rhs + index))) {
+            return false;
+        }
+    }
+    return false;
 }
 
-bool KMerFileMerger::checkEquals(char* lhs, char* rhs, uint64_t kmerStoreSize) {
-	for (int32_t index = 0; index < kmerStoreSize - sizeof(uint32_t); index += sizeof(uint64_t)) {
-		if (*((uint64_t*) (lhs + index)) == *((uint64_t*) (rhs + index))) {
-			continue;
-		} else {
-			return false;
-		}
-	}
-	return true;
+bool KMerFileMerger::CheckEquals(char* lhs, char* rhs, uint64_t kmerStoreLength) {
+    for (int32_t index = 0; index < kmerStoreLength - sizeof (uint32_t); index += sizeof (uint64_t)) {
+        if (*((uint64_t*) (lhs + index)) == *((uint64_t*) (rhs + index))) {
+            continue;
+        } else {
+            return false;
+        }
+    }
+    return true;
 }
 
-char* KMerFileMerger::readWithLocalCount(KMerFileReader& kMerFileReader, uint64_t kmerStoreSize) {
-	while (kMerFileReader.peekKmer() != NULL) {
-		if (kMerFileReader.peekNextKmer() != NULL
-				&& checkEquals(kMerFileReader.peekKmer(), kMerFileReader.peekNextKmer(), kmerStoreSize)) {
-			//add32Mers(kMerFileReader.peekKmer(), kMerFileReader.peekNextKmer());
-			*(uint32_t*) (kMerFileReader.peekNextKmer() + kmerStoreSize - sizeof(uint32_t)) =
-					*(uint32_t*) (kMerFileReader.peekNextKmer() + kmerStoreSize - sizeof(uint32_t))
-							+ *(uint32_t*) (kMerFileReader.peekKmer() + kmerStoreSize - sizeof(uint32_t));
-			kMerFileReader.popKmer();
-		} else {
-			return kMerFileReader.popKmer();
-		}
-	}
-	return NULL;
+void KMerFileMerger::WriteToFile(char* record) {
+    if (_writeLength + _kmerStoreLength > _writeBufferSize) {
+        WriteToFile();
+    }
+    memcpy(_writeBuffer + _writeLength, record, _kmerStoreLength);
+    _writeLength += _kmerStoreLength;
 }
 
-void KMerFileMerger::writeToFile(char* record) {
-	if (_writeLength + _recordLength > _writeBufferSize) {
-		writeToFile();
-	}
-	memcpy(_writeBuffer + _writeLength, record, _recordLength);
-	_writeLength += _recordLength;
-}
-
-void KMerFileMerger::writeToFile() {
-
-	// TODO : Remove Test Codes ==============================
-//    FileDump* fileDump = new FileDump("/tmp/mydata.dump");
-//    fileDump->dumpToConsole2(_writeBuffer, 32, _writeLength);
-	//========================================================
-
-	ofstream out(_outputFilename.c_str(), ios::out | ios::app | ios::binary);
-	if (out.is_open()) {
-		out.write(_writeBuffer, _writeLength);
-		_writeLength = 0;
-		out.close();
-	}
+void KMerFileMerger::WriteToFile() {
+    ofstream out(_outputFilename.c_str(), ios::out | ios::app | ios::binary);
+    if (out.is_open()) {
+        out.write(_writeBuffer, _writeLength);
+        _writeLength = 0;
+        out.close();
+    }
 }

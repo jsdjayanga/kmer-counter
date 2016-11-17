@@ -11,6 +11,9 @@
  * Created on October 19, 2016, 8:03 PM
  */
 
+#include <dirent.h>
+#include <stdio.h>
+#include <string.h>
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
 #include "GPUHandler.h"
@@ -26,8 +29,6 @@ KMerCounter::KMerCounter(Options* options) {
 	}
 	kmerStoreSize *= 8;
 	kmerStoreSize += 4;
-
-	_kMerFileMerger = new KMerFileMerger(_options->getTempFileLocation(), _options->getOutputFile(), kmerStoreSize, 2000, kmerLength);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -61,7 +62,24 @@ void KMerCounter::Start() {
 	}
 
 	// Count KMers with Merged Files
-	_kMerFileMerger->merge();
+	string tempLocation = _options->getTempFileLocation();
+	list<string> tempFiles;
+	DIR *dir;
+	struct dirent *ent;
+	if ((dir = opendir(tempLocation.c_str())) != NULL) {
+		while ((ent = readdir(dir)) != NULL) {
+			if (strncmp(".", ent->d_name, 1) != 0 && strncmp("..", ent->d_name, 2) != 0) {
+				ifstream temp;
+				string filename = tempLocation + "/" + ent->d_name;
+				tempFiles.push_back(filename);
+			}
+		}
+		closedir(dir);
+	} else {
+		cout << "Couldn't open directory : " << tempLocation << endl;
+	}
+	KMerFileMerger* kmerMerger = new KMerFileMerger(tempFiles, _options->getOutputFile(), _options->GetKmerLength());
+	kmerMerger->Merge();
 
 //    list<InputFileDetails*>& list = inputFileHandler->getFileList();
 
