@@ -384,34 +384,36 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	cudaErrorCheck(cudaMemset(d_output, 0, outputSize));
 	cudaErrorCheck(cudaMemset(d_filter, 0, inputSize));
 
-	int32_t threadCount = 512;
+	int32_t blockThreadCount = 512;
 	int32_t blockCount = 1024;
-	int32_t totalThread = blockCount * threadCount;
+	int32_t totalThread = blockCount * blockThreadCount;
 	int32_t count = inputSize / lineLength / totalThread;
-	if ((inputSize / lineLength) % threadCount > 0) {
+	if ((inputSize / lineLength) % totalThread > 0) {
 		count++;
 	}
 
 	for (int32_t ite = 0; ite < count; ite++) {
-		if (threadCount * lineLength * ite < inputSize) {
-			//printf("=========================ite %i, index=%"PRIu64", inputSize=%"PRIu64"\n", ite, threadCount * lineLength * ite, inputSize);
+		if (totalThread * lineLength * ite < inputSize) {
+			printf(
+					"=========================ite %i, index=%"PRIu64", inputSize=%"PRIu64", lineLength=%"PRIu64", totalThreads=%"PRIu64"\n",
+					ite, totalThread * lineLength * ite, inputSize, lineLength, totalThread);
 
-			bitEncode<<<blockCount, threadCount>>>(&d_input[threadCount * lineLength * ite],
-					&d_filter[threadCount * lineLength * ite],
+			bitEncode<<<blockCount, blockThreadCount>>>(&d_input[totalThread * lineLength * ite],
+					&d_filter[totalThread * lineLength * ite],
 					lineLength,
-					inputSize - (threadCount * lineLength * ite));
+					inputSize - (totalThread * lineLength * ite));
 			cudaErrorCheck(cudaPeekAtLastError());
 			cudaErrorCheck(cudaDeviceSynchronize());
 
 			//printf("==========bitEncode DONE===============ite %i, index=%"PRIu64", inputSize=%"PRIu64"\n", ite, threadCount * lineLength * ite, inputSize);
 
-			extractKMers<<<blockCount, threadCount>>>(
-					&d_input[threadCount * lineLength * ite],
-					&d_filter[threadCount * lineLength * ite],
-					&d_output[threadCount * outputSize / (inputSize / lineLength) * ite],
+			extractKMers<<<blockCount, blockThreadCount>>>(
+					&d_input[totalThread * lineLength * ite],
+					&d_filter[totalThread * lineLength * ite],
+					&d_output[totalThread * outputSize / (inputSize / lineLength) * ite],
 					outputSize / (inputSize / lineLength),
 					kmerLength,
-					inputSize - (threadCount * lineLength * ite),
+					inputSize - (totalThread * lineLength * ite),
 					lineLength);
 			cudaErrorCheck(cudaPeekAtLastError());
 			cudaErrorCheck(cudaDeviceSynchronize());
