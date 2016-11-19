@@ -48,15 +48,13 @@ void KMerFileMergeHandler::Join() {
 
 void KMerFileMergeHandler::Run() {
     uint32_t index = 0;
-    cout << "====================Run():" << _completed << endl;
+
     while (!_completed) {
         
         if (_kmerMergers.size() >= _maxThreads || _noOfMergersAtOnce > _files.size()) {
             this_thread::sleep_for(chrono::seconds(1));
             continue;
         }
-        
-        cout << "====================inside while()" << endl;
         
         _rec_mtx.lock();
 
@@ -86,14 +84,11 @@ void KMerFileMergeHandler::Run() {
 
         _rec_mtx.unlock();
 
-        cout << "+++++++++++++++++++++files:" << _files.size() << endl;
     }
 
     for (std::list<thread>::iterator it = _workerThreads.begin(); it != _workerThreads.end(); ++it) {
         (*it).join();
     }
-
-    cout << "++++++++++++++final+++++++files:" << _files.size() << endl;
 
     list<string> filesToMerge;
     for (std::list<string>::iterator it = _files.begin(); it != _files.end(); ++it) {
@@ -111,17 +106,7 @@ void KMerFileMergeHandler::AddFile(string filename) {
 }
 
 void KMerFileMergeHandler::PerformMerge(KMerFileMerger* kMerFileMerger, string outputFilename) {
-    cout << "Thread ID: " << this_thread::get_id() << endl;
-
     kMerFileMerger->Merge();
-
-
-    cout << "File done : " << outputFilename << endl;
-
-    //    if (_files.size() <= stage + 1) {
-    //        _files.push_back(new list<string>);
-    //    }
-    //    _files[stage + 1]->push_back(outputFilename);
 
     _rec_mtx.lock();
     _files.push_back(outputFilename);
