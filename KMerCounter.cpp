@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
+#include <sstream>
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
 #include "GPUHandler.h"
@@ -29,6 +30,8 @@ KMerCounter::KMerCounter(Options* options) {
 	}
 	kmerStoreSize *= 8;
 	kmerStoreSize += 4;
+
+	_kMerFileMergeHandler = new KMerFileMergeHandler(_options->getOutputFile(), _options->GetKmerLength(), 2, 4);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -40,6 +43,7 @@ KMerCounter::~KMerCounter() {
 void KMerCounter::Start() {
 	uint32_t readId = 0;
 	InputFileHandler* inputFileHandler = new InputFileHandler(_options->GetInputFileDirectory());
+	_kMerFileMergeHandler->Start();
 	int64_t chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(),
 			_options->GetGpuMemoryLimit());
 	FASTQData* fastqData = inputFileHandler->read(chunkSize);
@@ -52,6 +56,10 @@ void KMerCounter::Start() {
 		if (fastqData->getSize() > 0 && fastqData->getSize() >= inputFileHandler->getLineLength()) {
 			processKMers(fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(),
 					inputFileHandler->getLineLength(), readId, *_fileDump);
+
+			ostringstream tempFilename;
+			tempFilename << _options->getTempFileLocation() << "/" << readId;
+			_kMerFileMergeHandler->AddFile(tempFilename.str());
 		}
 
 		delete fastqData;
@@ -62,24 +70,27 @@ void KMerCounter::Start() {
 	}
 
 	// Count KMers with Merged Files
-	string tempLocation = _options->getTempFileLocation();
-	list<string> tempFiles;
-	DIR *dir;
-	struct dirent *ent;
-	if ((dir = opendir(tempLocation.c_str())) != NULL) {
-		while ((ent = readdir(dir)) != NULL) {
-			if (strncmp(".", ent->d_name, 1) != 0 && strncmp("..", ent->d_name, 2) != 0) {
-				ifstream temp;
-				string filename = tempLocation + "/" + ent->d_name;
-				tempFiles.push_back(filename);
-			}
-		}
-		closedir(dir);
-	} else {
-		cout << "Couldn't open directory : " << tempLocation << endl;
-	}
-	KMerFileMerger* kmerMerger = new KMerFileMerger(tempFiles, _options->getOutputFile(), _options->GetKmerLength());
-	kmerMerger->Merge();
+	_kMerFileMergeHandler->InputComplete();
+	_kMerFileMergeHandler->Join();
+
+//	string tempLocation = _options->getTempFileLocation();
+//	list<string> tempFiles;
+//	DIR *dir;
+//	struct dirent *ent;
+//	if ((dir = opendir(tempLocation.c_str())) != NULL) {
+//		while ((ent = readdir(dir)) != NULL) {
+//			if (strncmp(".", ent->d_name, 1) != 0 && strncmp("..", ent->d_name, 2) != 0) {
+//				ifstream temp;
+//				string filename = tempLocation + "/" + ent->d_name;
+//				tempFiles.push_back(filename);
+//			}
+//		}
+//		closedir(dir);
+//	} else {
+//		cout << "Couldn't open directory : " << tempLocation << endl;
+//	}
+//	KMerFileMerger* kmerMerger = new KMerFileMerger(tempFiles, _options->getOutputFile(), _options->GetKmerLength());
+//	kmerMerger->Merge();
 
 //    list<InputFileDetails*>& list = inputFileHandler->getFileList();
 

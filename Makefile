@@ -12,7 +12,7 @@ all: kmer-counter
 
 ## Target: kmer-counter
 kmer-counter: cuda
-	g++ -I /usr/local/cuda/include/ -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp KMerFileHandler.cpp KMerFileReader.cpp KMerFileMerger.cpp KMerPrinter.cpp SortedKMerFile.cpp GPUHandler.o -L/usr/local/cuda/lib64  -lcudart
+	g++ -ggdb -O0 -std=c++11 -Wl,--no-as-needed -I /usr/local/cuda/include/ -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp KMerFileHandler.cpp KMerFileReader.cpp KMerFileMerger.cpp KMerPrinter.cpp SortedKMerFile.cpp KMerFileMergeHandler.cpp GPUHandler.o -L/usr/local/cuda/lib64 -lcudart -pthread
 
 cuda:
 	nvcc -gencode arch=compute_20,code=sm_20 -g -G -c GPUHandler.cu 
