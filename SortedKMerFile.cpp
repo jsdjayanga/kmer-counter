@@ -26,7 +26,7 @@ SortedKMerFile::SortedKMerFile(string filename, uint64_t kmerLenght) {
     this->_kmerStoreLenght *= 8;
     this->_kmerStoreLenght += 4;
 
-    this->_cacheSize = this->_kmerStoreLenght * 10000;
+    this->_cacheSize = this->_kmerStoreLenght * 1000000;
     this->_cache = new char[this->_cacheSize];
     memset(this->_cache, 0, this->_cacheSize);
 

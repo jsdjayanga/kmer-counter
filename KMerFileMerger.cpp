@@ -32,7 +32,7 @@ KMerFileMerger::KMerFileMerger(list<string> inputFiles, string outputFile, uint6
     this->_outputFilename = outputFile;
     
     this->_writeLength = 0;
-    this->_writeBufferSize = _kmerStoreLength * 100000;
+    this->_writeBufferSize = _kmerStoreLength * 1000000;
     this->_writeBuffer = new char[this->_writeBufferSize];
 }
 
