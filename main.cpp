@@ -61,9 +61,9 @@ Options* getOptions(int argc, char** argv) {
 		}
 
 		if (strncmp(argv[i], "noOfMergeThreads=", 17) == 0) {
-					options->setNoOfMergeThreads(atoi(argv[i] + 17));
-					cout << "Updating No Of Merge Threads='" << options->getNoOfMergeThreads() << "'" << endl;
-				}
+			options->setNoOfMergeThreads(atoi(argv[i] + 17));
+			cout << "Updating No Of Merge Threads='" << options->getNoOfMergeThreads() << "'" << endl;
+		}
 	}
 
 	return options;
