@@ -52,7 +52,7 @@ void KMerFileMergeHandler::Run() {
     while (!_completed) {
         
         if (_kmerMergers.size() >= _maxThreads || _noOfMergersAtOnce > _files.size()) {
-            this_thread::sleep_for(chrono::seconds(1));
+            this_thread::sleep_for(chrono::milliseconds(50));
             continue;
         }
         
