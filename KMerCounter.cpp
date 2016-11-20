@@ -31,7 +31,8 @@ KMerCounter::KMerCounter(Options* options) {
 	kmerStoreSize *= 8;
 	kmerStoreSize += 4;
 
-	_kMerFileMergeHandler = new KMerFileMergeHandler(_options->getOutputFile(), _options->GetKmerLength(), 2, 4);
+	_kMerFileMergeHandler = new KMerFileMergeHandler(_options->getOutputFile(), _options->GetKmerLength(),
+			_options->getNoOfMergersAtOnce(), _options->getNoOfMergeThreads());
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -64,8 +65,6 @@ void KMerCounter::Start() {
 
 		delete fastqData;
 
-		chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(),
-				_options->GetGpuMemoryLimit());
 		fastqData = inputFileHandler->read(chunkSize);
 	}
 

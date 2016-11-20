@@ -17,6 +17,8 @@ Options::Options() {
 	this->_numberOfThreads = 0;
 	this->_gpuMemoryLimit = 10000000;
 	this->_kmerLength = 32;
+	this->_noOfMergersAtOnce = 2;
+	this->_noOfMergeThreads = 2;
 }
 
 Options::Options(const Options& orig) {
@@ -71,5 +73,21 @@ const string& Options::getTempFileLocation() const {
 
 void Options::setTempFileLocation(const string& tempFileLocation) {
 	_tempFileLocation = tempFileLocation;
+}
+
+uint32_t Options::getNoOfMergersAtOnce() const {
+	return _noOfMergersAtOnce;
+}
+
+void Options::setNoOfMergersAtOnce(uint32_t noOfMergersAtOnce) {
+	_noOfMergersAtOnce = noOfMergersAtOnce;
+}
+
+uint32_t Options::getNoOfMergeThreads() const {
+	return _noOfMergeThreads;
+}
+
+void Options::setNoOfMergeThreads(uint32_t noOfMergeThreads) {
+	_noOfMergeThreads = noOfMergeThreads;
 }
 

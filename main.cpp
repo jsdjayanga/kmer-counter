@@ -54,6 +54,16 @@ Options* getOptions(int argc, char** argv) {
 			options->setOutputFile(argv[i] + 11);
 			cout << "Updating Output File='" << options->getOutputFile() << "'" << endl;
 		}
+
+		if (strncmp(argv[i], "noOfMergersAtOnce=", 18) == 0) {
+			options->setNoOfMergersAtOnce(atoi(argv[i] + 18));
+			cout << "Updating No Of Mergers At Once='" << options->getNoOfMergersAtOnce() << "'" << endl;
+		}
+
+		if (strncmp(argv[i], "noOfMergeThreads=", 17) == 0) {
+					options->setNoOfMergeThreads(atoi(argv[i] + 17));
+					cout << "Updating No Of Merge Threads='" << options->getNoOfMergeThreads() << "'" << endl;
+				}
 	}
 
 	return options;

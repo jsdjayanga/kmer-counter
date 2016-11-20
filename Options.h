@@ -37,6 +37,10 @@ public:
 	void setOutputFile(const string& outputFile);
 	const string& getTempFileLocation() const;
 	void setTempFileLocation(const string& tempFileLocation);
+	uint32_t getNoOfMergersAtOnce() const;
+	void setNoOfMergersAtOnce(uint32_t noOfMergersAtOnce);
+	uint32_t getNoOfMergeThreads() const;
+	void setNoOfMergeThreads(uint32_t noOfMergeThreads);
 
 private:
 	string _inputFileDirectory;
@@ -47,5 +51,8 @@ private:
 
 	string _tempFileLocation;
 	string _outputFile;
+
+	uint32_t _noOfMergersAtOnce;
+	uint32_t _noOfMergeThreads;
 };
 
