@@ -32,7 +32,23 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 	}
 }
 
-int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
+struct GPUStream {
+	GPUStream(char* h_output, char* d_input, char* d_output, char* d_filter) {
+		_h_output = h_output;
+		_d_input = d_input;
+		_d_output = d_output;
+		_d_filter = d_filter;
+	}
+	cudaStream_t stream;
+	char* _h_output;
+	char* _d_input;
+	char* _d_output;
+	char* _d_filter;
+};
+
+GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength);
+
+int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump);
 
 void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize, uint64_t lineLength);

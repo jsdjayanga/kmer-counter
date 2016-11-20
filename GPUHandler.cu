@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
+#include <thrust/execution_policy.h>
 #include "GPUHandler.h"
 #include "KMerCounterUtils.h"
 
@@ -295,7 +296,7 @@ public:
 	}
 };
 
-void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize) {
+void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize, cudaStream_t& stream) {
 	uint64_t kmerStoreSize = kmerLength / 32;
 	if (kmerLength % 32 > 0) {
 		kmerStoreSize++;
@@ -306,19 +307,19 @@ void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize) {
 	if (kmerLength <= 32) {
 		printf("invoking ==== KMer32Comparator");
 		thrust::device_ptr<KMer32> d_Kmers((KMer32*) d_output);
-		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
+		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
 	} else if (kmerLength <= 64) {
 		printf("invoking ==== KMer64Comparator");
 		thrust::device_ptr<KMer64> d_Kmers((KMer64*) d_output);
-		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer64Comparator());
+		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer64Comparator());
 	} else if (kmerLength <= 96) {
 		printf("invoking ==== KMer96Comparator");
 		thrust::device_ptr<KMer96> d_Kmers((KMer96*) d_output);
-		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer96Comparator());
+		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer96Comparator());
 	} else if (kmerLength <= 128) {
 		printf("invoking ==== KMer128Comparator");
 		thrust::device_ptr<KMer128> d_Kmers((KMer128*) d_output);
-		thrust::sort(d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer128Comparator());
+		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer128Comparator());
 	} else {
 		printf("Sorting is not supported for kmers with length higher than %"PRIu64"\n", kmerLength);
 	}
@@ -359,30 +360,20 @@ void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize) {
 //	return outputSize;
 //}
 
-int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
+int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump) {
 	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
 	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 
-	char* h_output;
-
-	char* d_input;
-	char* d_output;
-	char* d_filter;
-
 	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
 	printf("Output size =============%"PRIu64"\n", outputSize);
 
-	h_output = (char *) malloc(outputSize);
-	memset(h_output, 0, outputSize);
 
-	cudaErrorCheck(cudaMalloc((void ** ) &d_input, inputSize));
-	cudaErrorCheck(cudaMalloc((void ** ) &d_output, outputSize));
-	cudaErrorCheck(cudaMalloc((void ** ) &d_filter, inputSize));
-
-	cudaErrorCheck(cudaMemcpy(d_input, input, inputSize, cudaMemcpyHostToDevice));
-	cudaErrorCheck(cudaMemset(d_output, 0, outputSize));
-	cudaErrorCheck(cudaMemset(d_filter, 0, inputSize));
+	memset(gpuStream->_h_output, 0, outputSize);
+	cudaErrorCheck(cudaMemcpyAsync(gpuStream->_d_input, input, inputSize, cudaMemcpyHostToDevice, gpuStream->stream));
+	cudaErrorCheck(cudaMemsetAsync(gpuStream->_d_output, 0, outputSize, gpuStream->stream));
+	cudaErrorCheck(cudaMemsetAsync(gpuStream->_d_filter, 0, inputSize, gpuStream->stream));
+	cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
 	int32_t blockThreadCount = 512;
 	int32_t blockCount = 1024;
@@ -398,25 +389,25 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 					"=========================ite %i, index=%"PRIu64", inputSize=%"PRIu64", lineLength=%"PRIu64", totalThreads=%"PRIu64"\n",
 					ite, totalThread * lineLength * ite, inputSize, lineLength, totalThread);
 
-			bitEncode<<<blockCount, blockThreadCount>>>(&d_input[totalThread * lineLength * ite],
-					&d_filter[totalThread * lineLength * ite],
+			bitEncode<<<blockCount, blockThreadCount, 0, gpuStream->stream>>>(&gpuStream->_d_input[totalThread * lineLength * ite],
+					&gpuStream->_d_filter[totalThread * lineLength * ite],
 					lineLength,
 					inputSize - (totalThread * lineLength * ite));
 			cudaErrorCheck(cudaPeekAtLastError());
-			cudaErrorCheck(cudaDeviceSynchronize());
+			cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
 			//printf("==========bitEncode DONE===============ite %i, index=%"PRIu64", inputSize=%"PRIu64"\n", ite, threadCount * lineLength * ite, inputSize);
 
-			extractKMers<<<blockCount, blockThreadCount>>>(
-					&d_input[totalThread * lineLength * ite],
-					&d_filter[totalThread * lineLength * ite],
-					&d_output[totalThread * outputSize / (inputSize / lineLength) * ite],
+			extractKMers<<<blockCount, blockThreadCount, 0, gpuStream->stream>>>(
+					&gpuStream->_d_input[totalThread * lineLength * ite],
+					&gpuStream->_d_filter[totalThread * lineLength * ite],
+					&gpuStream->_d_output[totalThread * outputSize / (inputSize / lineLength) * ite],
 					outputSize / (inputSize / lineLength),
 					kmerLength,
 					inputSize - (totalThread * lineLength * ite),
 					lineLength);
 			cudaErrorCheck(cudaPeekAtLastError());
-			cudaErrorCheck(cudaDeviceSynchronize());
+			cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
 			//printf("==========extractKMers DONE===============ite %i, index=%"PRIu64", inputSize=%"PRIu64"\n", ite, threadCount * lineLength * ite, inputSize);
 		}
@@ -428,31 +419,58 @@ int64_t processKMers(const char* input, int64_t kmerLength, int64_t inputSize, i
 	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	// Sort step
-	sortKmers(d_output, kmerLength, outputSize);
+	sortKmers(gpuStream->_d_output, kmerLength, outputSize, gpuStream->stream);
 	cudaErrorCheck(cudaPeekAtLastError());
-	cudaErrorCheck(cudaDeviceSynchronize());
+	cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
-	cudaErrorCheck(cudaMemcpy(h_output, d_output, outputSize, cudaMemcpyDeviceToHost));
+	cudaErrorCheck(cudaMemcpyAsync(gpuStream->_h_output, gpuStream->_d_output, outputSize, cudaMemcpyDeviceToHost, gpuStream->stream));
 	//uint64_t validRecordStartPoint = getStartOfValidRecords(h_output, kmerLength, outputSize);
 
 //	for (uint64_t ind = 0; ind < outputSize; ind += 12) {
 //		printf("====test==%"PRIu64", %u\n", *(uint64_t*)(h_output + ind), *(uint32_t*)(h_output + ind + 8));
 //	}
 
-	fileDump.dumpKmersToFile(readId, h_output, outputSize);
+	fileDump.dumpKmersToFile(readId, gpuStream->_h_output, outputSize);
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
 	printf("After Sort\n");
 //	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
 
-	free(h_output);
-	cudaFree(d_input);
-	cudaFree(d_output);
-	cudaFree(d_filter);
-	cudaDeviceReset();
 
 	return 0;
+}
+
+GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength) {
+	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
+	GPUStream** gpuStreams = new GPUStream*[streamCount];
+	for (int32_t index = 0; index < streamCount; index++) {
+		char* h_output;
+		char* d_input;
+		char* d_output;
+		char* d_filter;
+
+		//printf("==========ponters B4: %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n", h_output, d_input, d_output, d_filter);
+
+		h_output = (char *) malloc(outputSize);
+		memset(h_output, 0, outputSize);
+
+		cudaErrorCheck(cudaMalloc((void ** ) &d_input, inputSize));
+		cudaErrorCheck(cudaMalloc((void ** ) &d_output, outputSize));
+		cudaErrorCheck(cudaMalloc((void ** ) &d_filter, inputSize));
+
+		//printf("==========ponters AF: %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n", h_output, d_input, d_output, d_filter);
+
+		GPUStream* gpuStream = new GPUStream(h_output, d_input, d_output, d_filter);
+
+		//printf("==========ponters FROM STREAM: %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n", gpuStream->_h_output, gpuStream->_d_input, gpuStream->_d_output, gpuStream->_d_filter);
+
+		cudaStreamCreate(&(gpuStream->stream));
+
+		gpuStreams[index] = gpuStream;
+		//printf("GPU stream created: %i\n", index);
+	}
+	return gpuStreams;
 }
 
 void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize, uint64_t lineLength) {

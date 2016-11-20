@@ -14,10 +14,13 @@
 #pragma once
 
 #include <iostream>
+#include <thread>
+#include <mutex>
 #include "Options.h"
 #include "FileDump.h"
 #include "KMerFileMerger.h"
 #include "KMerFileMergeHandler.h"
+#include "GPUHandler.h"
 
 using namespace std;
 
@@ -31,8 +34,12 @@ private:
     Options* _options;
     FileDump* _fileDump;
     KMerFileMergeHandler* _kMerFileMergeHandler;
+    list<thread> _workerThreads;
+    recursive_mutex _rec_mtx;
+    set<GPUStream*> _vacantStreams;
     
     int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
+    void dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId);
 };
 
 

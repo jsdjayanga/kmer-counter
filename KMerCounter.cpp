@@ -17,7 +17,7 @@
 #include <sstream>
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
-#include "GPUHandler.h"
+
 
 KMerCounter::KMerCounter(Options* options) {
 	_options = options;
@@ -41,6 +41,23 @@ KMerCounter::KMerCounter(const KMerCounter& orig) {
 KMerCounter::~KMerCounter() {
 }
 
+void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId) {
+	printf("Dispatching work to %i, readid=%i", gpuStream, readId);
+
+	processKMers(gpuStream, fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(),
+						lineLength, readId, *_fileDump);
+
+	ostringstream tempFilename;
+	tempFilename << _options->getTempFileLocation() << "/" << readId;
+	_kMerFileMergeHandler->AddFile(tempFilename.str());
+
+	_rec_mtx.lock();
+	_vacantStreams.insert(gpuStream);
+	_rec_mtx.unlock();
+
+	delete fastqData;
+}
+
 void KMerCounter::Start() {
 	uint32_t readId = 0;
 	InputFileHandler* inputFileHandler = new InputFileHandler(_options->GetInputFileDirectory());
@@ -48,24 +65,37 @@ void KMerCounter::Start() {
 	int64_t chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(),
 			_options->GetGpuMemoryLimit());
 	FASTQData* fastqData = inputFileHandler->read(chunkSize);
+
+	uint32_t streamCount = 8;
+	GPUStream** gpuStreams = PrepareGPU(streamCount, fastqData->getSize(), inputFileHandler->getLineLength(), _options->GetKmerLength());
+	for (int i = 0; i < streamCount; i++) {
+		_vacantStreams.insert(gpuStreams[i]);
+	}
+
 	while (fastqData != NULL) {
+
 		readId++;
 		// TODO : Pump data to GPU
 		//cout << "====" << fastqData->getLineLength() << endl;
 		//_fileDump->dump(fastqData);
 
 		if (fastqData->getSize() > 0 && fastqData->getSize() >= inputFileHandler->getLineLength()) {
-			processKMers(fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(),
-					inputFileHandler->getLineLength(), readId, *_fileDump);
+			while (_vacantStreams.empty()) {
+				this_thread::sleep_for(chrono::milliseconds(50));
+			}
 
-			ostringstream tempFilename;
-			tempFilename << _options->getTempFileLocation() << "/" << readId;
-			_kMerFileMergeHandler->AddFile(tempFilename.str());
+			_rec_mtx.lock();
+			GPUStream* gpuStream = *(_vacantStreams.begin());
+			_vacantStreams.erase(_vacantStreams.begin());
+			_workerThreads.push_back(thread(&KMerCounter::dispatchWork, this, gpuStream, fastqData, inputFileHandler->getLineLength(), readId));
+			_rec_mtx.unlock();
 		}
 
-		delete fastqData;
-
 		fastqData = inputFileHandler->read(chunkSize);
+	}
+
+	for (std::list<thread>::iterator it=_workerThreads.begin(); it != _workerThreads.end(); ++it) {
+	    (*it).join();;
 	}
 
 	// Count KMers with Merged Files
