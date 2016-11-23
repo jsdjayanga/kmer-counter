@@ -325,6 +325,39 @@ void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize, cudaStr
 	}
 }
 
+bool CheckEquals(char* lhs, char* rhs, uint64_t kmerStoreLength) {
+    for (int32_t index = 0; index < kmerStoreLength - sizeof (uint32_t); index += sizeof (uint64_t)) {
+        if (*((uint64_t*) (lhs + index)) == *((uint64_t*) (rhs + index))) {
+            continue;
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
+uint64_t reduceKMers(char* h_output, uint64_t kmerLength, uint64_t outputSize) {
+	uint64_t kmerStoreSize = (kmerLength + 31) / 32;
+	kmerStoreSize *= 8;
+	kmerStoreSize += 4;
+
+	uint64_t index = 0;
+
+	for (uint64_t i = kmerStoreSize; i < outputSize; i += kmerStoreSize) {
+		if (CheckEquals(h_output + index, h_output + i, kmerStoreSize)) {
+			*(uint32_t*) (h_output + index + kmerStoreSize - sizeof (uint32_t)) =
+					*(uint32_t*) (h_output + index + kmerStoreSize - sizeof (uint32_t)) +
+					*(uint32_t*) (h_output + i + kmerStoreSize - sizeof (uint32_t));
+		} else {
+			if (i - index > kmerStoreSize) {
+				memcpy(h_output + index + kmerStoreSize, h_output + i, kmerStoreSize);
+			}
+			index += kmerStoreSize;
+		}
+	}
+	return index + kmerStoreSize;
+}
+
 //uint64_t validRecordSearch(const char* h_output, uint64_t start, uint64_t end, uint64_t kmerStoreSize) {
 //	uint64_t mid = (end + start) / 2;
 //
@@ -429,8 +462,9 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 //	for (uint64_t ind = 0; ind < outputSize; ind += 12) {
 //		printf("====test==%"PRIu64", %u\n", *(uint64_t*)(h_output + ind), *(uint32_t*)(h_output + ind + 8));
 //	}
+	uint64_t size = reduceKMers(gpuStream->_h_output, kmerLength, outputSize);
 
-	fileDump.dumpKmersToFile(readId, gpuStream->_h_output, outputSize);
+	fileDump.dumpKmersToFile(readId, gpuStream->_h_output, size);
 	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
