@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include <tbb/concurrent_hash_map.h>
+#include <tbb/concurrent_unordered_map.h>
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -21,8 +23,24 @@
 #include "KMerFileMerger.h"
 #include "KMerFileMergeHandler.h"
 #include "GPUHandler.h"
+#include <unordered_map>
+
 
 using namespace std;
+using namespace tbb;
+
+struct eqstr
+{
+	bool operator()(const char* s1, const char* s2) const
+	{
+		return (s1 == s2) || (s1 && s2 && *(uint64_t*)s1 == *(uint64_t*)s2);
+	}
+};
+
+struct MyHasher {
+	static size_t hash(const char* value)                  { return *(uint64_t*)value; }
+	static bool   equal(const char* s1, const char* s2) { return (s1 == s2) || (s1 && s2 && *(uint64_t*)s1 == *(uint64_t*)s2); }
+};
 
 class KMerCounter {
 public:
@@ -40,6 +58,15 @@ private:
     
     int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
     void dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId);
+    void DumpResults();
+
+
+    bool _processing_done;
+
+    recursive_mutex _rec_mtxs[8];
+
+    concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
+    //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
 };
 
 

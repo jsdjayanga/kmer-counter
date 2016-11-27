@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
+#include <list>
 #include "FileDump.h"
 #include "KMerSizes.h"
 
@@ -33,17 +34,28 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 }
 
 struct GPUStream {
-	GPUStream(char* h_output, char* d_input, char* d_output, char* d_filter) {
+	GPUStream(uint32_t id, char* h_output, char* d_input, char* d_output, char* d_filter) {
+		_id = id;
 		_h_output = h_output;
 		_d_input = d_input;
 		_d_output = d_output;
 		_d_filter = d_filter;
+
+		_kmer_db.clear();
+		_kmer_db_line_length = 250 * 1024 * 1024;
+		_kmer_db.push_front(new char[_kmer_db_line_length]);
+		_kmer_db_line_index = 0;
 	}
 	cudaStream_t stream;
 	char* _h_output;
 	char* _d_input;
 	char* _d_output;
 	char* _d_filter;
+	uint32_t _id;
+
+	list<char*> _kmer_db;
+	uint64_t _kmer_db_line_length;
+	uint64_t _kmer_db_line_index;
 };
 
 GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength);

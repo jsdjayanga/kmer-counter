@@ -452,9 +452,9 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	// Sort step
-	sortKmers(gpuStream->_d_output, kmerLength, outputSize, gpuStream->stream);
-	cudaErrorCheck(cudaPeekAtLastError());
-	cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
+//	sortKmers(gpuStream->_d_output, kmerLength, outputSize, gpuStream->stream);
+//	cudaErrorCheck(cudaPeekAtLastError());
+//	cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
 	cudaErrorCheck(cudaMemcpyAsync(gpuStream->_h_output, gpuStream->_d_output, outputSize, cudaMemcpyDeviceToHost, gpuStream->stream));
 	//uint64_t validRecordStartPoint = getStartOfValidRecords(h_output, kmerLength, outputSize);
@@ -463,16 +463,16 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 //		printf("====test==%"PRIu64", %u\n", *(uint64_t*)(h_output + ind), *(uint32_t*)(h_output + ind + 8));
 //	}
 	uint64_t size = reduceKMers(gpuStream->_h_output, kmerLength, outputSize);
-
-	fileDump.dumpKmersToFile(readId, gpuStream->_h_output, size);
-	//printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
+//
+//	fileDump.dumpKmersToFile(readId, gpuStream->_h_output, size);
+//	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
 	printf("After Sort\n");
 //	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
 
 
-	return 0;
+	return size;
 }
 
 GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength) {
@@ -495,7 +495,7 @@ GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLe
 
 		//printf("==========ponters AF: %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n", h_output, d_input, d_output, d_filter);
 
-		GPUStream* gpuStream = new GPUStream(h_output, d_input, d_output, d_filter);
+		GPUStream* gpuStream = new GPUStream(index + 1, h_output, d_input, d_output, d_filter);
 
 		//printf("==========ponters FROM STREAM: %"PRIu64", %"PRIu64", %"PRIu64", %"PRIu64"\n", gpuStream->_h_output, gpuStream->_d_input, gpuStream->_d_output, gpuStream->_d_filter);
 

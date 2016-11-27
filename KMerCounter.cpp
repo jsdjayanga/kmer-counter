@@ -14,7 +14,9 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include <sstream>
+#include <inttypes.h>
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
 
@@ -33,6 +35,8 @@ KMerCounter::KMerCounter(Options* options) {
 
 	_kMerFileMergeHandler = new KMerFileMergeHandler(_options->getOutputFile(), _options->GetKmerLength(),
 			_options->getNoOfMergersAtOnce(), _options->getNoOfMergeThreads());
+
+	_processing_done = false;
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -44,12 +48,36 @@ KMerCounter::~KMerCounter() {
 void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId) {
 	printf("Dispatching work to %i, readid=%i", gpuStream, readId);
 
-	processKMers(gpuStream, fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(),
+	uint64_t outputSize = processKMers(gpuStream, fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(),
 						lineLength, readId, *_fileDump);
 
-	ostringstream tempFilename;
-	tempFilename << _options->getTempFileLocation() << "/" << readId;
-	_kMerFileMergeHandler->AddFile(tempFilename.str());
+//	ostringstream tempFilename;
+//	tempFilename << _options->getTempFileLocation() << "/" << readId;
+//	_kMerFileMergeHandler->AddFile(tempFilename.str());
+
+	uint64_t kmerStoreSize = 12;
+	for (uint64_t i = 0; i < outputSize; i += kmerStoreSize) {
+
+		char* kmer_db = NULL;
+		if (gpuStream->_kmer_db_line_index + kmerStoreSize < gpuStream->_kmer_db_line_length) {
+			kmer_db = gpuStream->_kmer_db.front();
+		} else {
+			gpuStream->_kmer_db.push_front(new char[gpuStream->_kmer_db_line_length]);
+			gpuStream->_kmer_db_line_index = 0;
+			kmer_db = gpuStream->_kmer_db.front();
+		}
+
+		memcpy(kmer_db + gpuStream->_kmer_db_line_index, gpuStream->_h_output + i, kmerStoreSize - 4);
+
+		concurrent_hash_map<char*, uint32_t, MyHasher>::accessor acc;
+		if (_con_hashtable.emplace(acc, kmer_db + gpuStream->_kmer_db_line_index,
+				*(uint32_t*)(gpuStream->_h_output + i + kmerStoreSize - sizeof(uint32_t)))) {
+			gpuStream->_kmer_db_line_index += 8;
+		} else {
+			//printf("========================= match found stream:%i\n", gpuStream->_id);
+			acc->second = acc->second + *(uint32_t*)(gpuStream->_h_output + i + kmerStoreSize - sizeof(uint32_t));
+		}
+	}
 
 	_rec_mtx.lock();
 	_vacantStreams.insert(gpuStream);
@@ -58,10 +86,28 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 	delete fastqData;
 }
 
+void KMerCounter::DumpResults() {
+	while (!_processing_done) {
+		this_thread::sleep_for(chrono::seconds(1));
+		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _con_hashtable.size());
+//		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _con_uo_hashtable.size());
+	}
+
+	ofstream output_file(_options->getOutputFile());
+	for (auto it = _con_hashtable.begin(); it != _con_hashtable.end(); ++it) {
+//	for (auto it = _con_uo_hashtable.begin(); it != _con_uo_hashtable.end(); ++it) {
+		//std::cout << " " << it->first << ":" << it->second;
+		output_file.write(it->first, 8);
+		output_file.write((char*)&(it->second), 4);
+	}
+	output_file.close();
+}
+
 void KMerCounter::Start() {
 	uint32_t readId = 0;
 	InputFileHandler* inputFileHandler = new InputFileHandler(_options->GetInputFileDirectory());
-	_kMerFileMergeHandler->Start();
+	//_kMerFileMergeHandler->Start();
+	thread finalizer(&KMerCounter::DumpResults, this);
 	int64_t chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(),
 			_options->GetGpuMemoryLimit());
 	FASTQData* fastqData = inputFileHandler->read(chunkSize);
@@ -97,10 +143,12 @@ void KMerCounter::Start() {
 	for (std::list<thread>::iterator it=_workerThreads.begin(); it != _workerThreads.end(); ++it) {
 	    (*it).join();;
 	}
+	_processing_done = true;
+	finalizer.join();
 
 	// Count KMers with Merged Files
-	_kMerFileMergeHandler->InputComplete();
-	_kMerFileMergeHandler->Join();
+//	_kMerFileMergeHandler->InputComplete();
+//	_kMerFileMergeHandler->Join();
 
 //	string tempLocation = _options->getTempFileLocation();
 //	list<string> tempFiles;
