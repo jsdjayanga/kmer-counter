@@ -59,6 +59,7 @@ struct GPUStream {
 };
 
 GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength);
+void FreeGPU(GPUStream** streams, uint32_t streamCount);
 
 int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump);

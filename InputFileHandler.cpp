@@ -36,6 +36,8 @@ InputFileHandler::InputFileHandler(string fileDirectory) {
 
                 FASTQFileReader* fastqFileReader = new FASTQFileReader(filename, temp.tellg());
                 _fileReaders.push_back(fastqFileReader);
+
+                temp.close();
             }
         }
         closedir(dir);
@@ -48,6 +50,9 @@ InputFileHandler::InputFileHandler(const InputFileHandler& orig) {
 }
 
 InputFileHandler::~InputFileHandler() {
+	for (std::list<FASTQFileReader*>::iterator it=_fileReaders.begin(); it != _fileReaders.end(); ++it) {
+		delete (*it);
+	}
 }
 
 //list<InputFileDetails*>& InputFileHandler::getFileList() {

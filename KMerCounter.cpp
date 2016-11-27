@@ -146,6 +146,18 @@ void KMerCounter::Start() {
 	_processing_done = true;
 	finalizer.join();
 
+	FreeGPU(gpuStreams, streamCount);
+
+	for (int i = 0; i < streamCount; i++) {
+		GPUStream* stream = gpuStreams[i];
+		for (list<char*>::iterator it=stream->_kmer_db.begin(); it != stream->_kmer_db.end(); ++it) {
+			delete[] (*it);
+		}
+		delete stream;
+	}
+	delete inputFileHandler;
+	delete[] gpuStreams;
+
 	// Count KMers with Merged Files
 //	_kMerFileMergeHandler->InputComplete();
 //	_kMerFileMergeHandler->Join();

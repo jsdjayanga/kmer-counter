@@ -507,6 +507,16 @@ GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLe
 	return gpuStreams;
 }
 
+void FreeGPU(GPUStream** streams, uint32_t streamCount) {
+	for (int i = 0; i < streamCount; i++) {
+		GPUStream* stream = streams[i];
+		free(stream->_h_output);
+		cudaErrorCheck(cudaFree(stream->_d_input));
+		cudaErrorCheck(cudaFree(stream->_d_output));
+		cudaErrorCheck(cudaFree(stream->_d_filter));
+	}
+}
+
 void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize, uint64_t lineLength) {
 	char* temp = new char[inputSize];
 	memset(temp, 0, inputSize);

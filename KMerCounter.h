@@ -63,8 +63,6 @@ private:
 
     bool _processing_done;
 
-    recursive_mutex _rec_mtxs[8];
-
     concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
     //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
 };
