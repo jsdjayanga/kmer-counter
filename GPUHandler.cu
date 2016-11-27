@@ -6,6 +6,7 @@
 #include "GPUHandler.h"
 #include "KMerCounterUtils.h"
 
+
 __global__ void bitEncode(char* input, char* filter, int64_t lineLength, int64_t upperBound) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
 

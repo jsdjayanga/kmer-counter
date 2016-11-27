@@ -42,6 +42,7 @@ struct MyHasher {
 	static bool   equal(const char* s1, const char* s2) { return (s1 == s2) || (s1 && s2 && *(uint64_t*)s1 == *(uint64_t*)s2); }
 };
 
+
 class KMerCounter {
 public:
     KMerCounter(Options* options);

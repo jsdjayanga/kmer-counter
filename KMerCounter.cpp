@@ -20,6 +20,7 @@
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
 
+int32_t __kmer_record_size;
 
 KMerCounter::KMerCounter(Options* options) {
 	_options = options;
@@ -32,6 +33,8 @@ KMerCounter::KMerCounter(Options* options) {
 	}
 	kmerStoreSize *= 8;
 	kmerStoreSize += 4;
+
+	__kmer_record_size = kmerStoreSize;
 
 	_kMerFileMergeHandler = new KMerFileMergeHandler(_options->getOutputFile(), _options->GetKmerLength(),
 			_options->getNoOfMergersAtOnce(), _options->getNoOfMergeThreads());
@@ -55,11 +58,10 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 //	tempFilename << _options->getTempFileLocation() << "/" << readId;
 //	_kMerFileMergeHandler->AddFile(tempFilename.str());
 
-	uint64_t kmerStoreSize = 12;
-	for (uint64_t i = 0; i < outputSize; i += kmerStoreSize) {
+	for (uint64_t i = 0; i < outputSize; i += __kmer_record_size) {
 
 		char* kmer_db = NULL;
-		if (gpuStream->_kmer_db_line_index + kmerStoreSize < gpuStream->_kmer_db_line_length) {
+		if (gpuStream->_kmer_db_line_index + __kmer_record_size < gpuStream->_kmer_db_line_length) {
 			kmer_db = gpuStream->_kmer_db.front();
 		} else {
 			gpuStream->_kmer_db.push_front(new char[gpuStream->_kmer_db_line_length]);
@@ -67,15 +69,15 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 			kmer_db = gpuStream->_kmer_db.front();
 		}
 
-		memcpy(kmer_db + gpuStream->_kmer_db_line_index, gpuStream->_h_output + i, kmerStoreSize - 4);
+		memcpy(kmer_db + gpuStream->_kmer_db_line_index, gpuStream->_h_output + i, __kmer_record_size - sizeof(uint32_t));
 
 		concurrent_hash_map<char*, uint32_t, MyHasher>::accessor acc;
 		if (_con_hashtable.emplace(acc, kmer_db + gpuStream->_kmer_db_line_index,
-				*(uint32_t*)(gpuStream->_h_output + i + kmerStoreSize - sizeof(uint32_t)))) {
-			gpuStream->_kmer_db_line_index += 8;
+				*(uint32_t*)(gpuStream->_h_output + i + __kmer_record_size - sizeof(uint32_t)))) {
+			gpuStream->_kmer_db_line_index += (__kmer_record_size - sizeof(uint32_t));
 		} else {
 			//printf("========================= match found stream:%i\n", gpuStream->_id);
-			acc->second = acc->second + *(uint32_t*)(gpuStream->_h_output + i + kmerStoreSize - sizeof(uint32_t));
+			acc->second = acc->second + *(uint32_t*)(gpuStream->_h_output + i + __kmer_record_size - sizeof(uint32_t));
 		}
 	}
 
