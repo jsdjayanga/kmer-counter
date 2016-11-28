@@ -20,7 +20,7 @@
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
 
-int32_t __kmer_record_size;
+uint32_t __kmer_record_size;
 
 KMerCounter::KMerCounter(Options* options) {
 	_options = options;

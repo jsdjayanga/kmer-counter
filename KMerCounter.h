@@ -29,6 +29,8 @@
 using namespace std;
 using namespace tbb;
 
+extern uint32_t __kmer_record_size;
+
 struct eqstr
 {
 	bool operator()(const char* s1, const char* s2) const
@@ -38,8 +40,30 @@ struct eqstr
 };
 
 struct MyHasher {
-	static size_t hash(const char* value)                  { return *(uint64_t*)value; }
-	static bool   equal(const char* s1, const char* s2) { return (s1 == s2) || (s1 && s2 && *(uint64_t*)s1 == *(uint64_t*)s2); }
+	static size_t hash(const char* value) {
+		uint64_t hash = 0;
+		uint64_t temp = 0;
+		for (uint32_t index = 0; index < __kmer_record_size - sizeof(uint32_t); index += sizeof(uint64_t)) {
+			temp= *(uint64_t*)(value + index);
+			hash += (temp >> 32);
+			hash += ((temp << 32) >> 32);
+		}
+		return hash;
+	}
+	static bool equal(const char* s1, const char* s2) {
+		if (s1 == s2) {
+			return true;
+		} else if (s1 && s2) {
+			//*(uint64_t*)s1 == *(uint64_t*)s2)
+			for (uint32_t index = 0; index < __kmer_record_size - sizeof(uint32_t); index += sizeof(uint64_t)) {
+				if (*(uint64_t*) (s1 + index) != *(uint64_t*) (s2 + index)) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
 };
 
 
