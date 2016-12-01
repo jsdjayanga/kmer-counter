@@ -81,6 +81,8 @@ private:
     list<thread> _workerThreads;
     recursive_mutex _rec_mtx;
     set<GPUStream*> _vacantStreams;
+    uint32_t _streamCount;
+    GPUStream** _gpuStreams;
     
     int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
     void dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId);

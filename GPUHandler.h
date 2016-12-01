@@ -45,6 +45,7 @@ struct GPUStream {
 		_kmer_db_line_length = 250 * 1024 * 1024;
 		_kmer_db.push_front(new char[_kmer_db_line_length]);
 		_kmer_db_line_index = 0;
+		_waiting_for_hash_table = false;
 	}
 	cudaStream_t stream;
 	char* _h_output;
@@ -52,6 +53,7 @@ struct GPUStream {
 	char* _d_output;
 	char* _d_filter;
 	uint32_t _id;
+	bool _waiting_for_hash_table;
 
 	list<char*> _kmer_db;
 	uint64_t _kmer_db_line_length;

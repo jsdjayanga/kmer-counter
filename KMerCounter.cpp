@@ -26,6 +26,8 @@ uint32_t __kmer_record_size;
 KMerCounter::KMerCounter(Options* options) {
 	_options = options;
 	_fileDump = new FileDump(_options->getTempFileLocation());
+	_gpuStreams = NULL;
+	_streamCount = 8;
 
 	uint64_t kmerLength = options->GetKmerLength();
 	uint64_t kmerStoreSize = kmerLength / 32;
@@ -49,6 +51,7 @@ KMerCounter::KMerCounter(const KMerCounter& orig) {
 }
 
 KMerCounter::~KMerCounter() {
+	delete[] _gpuStreams;
 }
 
 void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId) {
@@ -88,8 +91,17 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 	bool capable = false;
 	const uint64_t no_of_records = outputSize / 16;
 	capable = _countingHashTable->Insert((KmerKeyValue<1>*) gpuStream->_d_output, no_of_records);
+	while (!capable) {
+		//printf("======================================waiting for hash table to ready\n");
+		gpuStream->_waiting_for_hash_table = true;
+		this_thread::sleep_for(chrono::milliseconds(50));
+		capable = _countingHashTable->Insert((KmerKeyValue<1>*) gpuStream->_d_output, no_of_records);
+		if (capable) {
+			gpuStream->_waiting_for_hash_table = false;
+		}
+	}
 
-	printf("========================= outsize: %"PRIu64", capable=%i\n", outputSize, capable);
+	//printf("========================= outsize: %"PRIu64", capable=%i\n", outputSize, capable);
 
 	_rec_mtx.lock();
 	_vacantStreams.insert(gpuStream);
@@ -101,8 +113,23 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 void KMerCounter::DumpResults() {
 	while (!_processing_done) {
 		this_thread::sleep_for(chrono::seconds(1));
-		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _con_hashtable.size());
+		_countingHashTable->UpdateCounters();
+		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _countingHashTable->GetSuccessCount());
 //		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _con_uo_hashtable.size());
+
+		int32_t count = 0;
+		for (int32_t i = 0; i < _streamCount; i++) {
+			if (_gpuStreams[i]->_waiting_for_hash_table) {
+				count++;
+			}
+		}
+
+		if (count >= _streamCount) {
+			printf("======================================Dumping files\n");
+			_countingHashTable->TempDump();
+			_countingHashTable->Init();
+			printf("======================================Dumping files completed");
+		}
 	}
 
 //	ofstream output_file(_options->getOutputFile());
@@ -126,10 +153,9 @@ void KMerCounter::Start() {
 			_options->GetGpuMemoryLimit());
 	FASTQData* fastqData = inputFileHandler->read(chunkSize);
 
-	uint32_t streamCount = 8;
-	GPUStream** gpuStreams = PrepareGPU(streamCount, fastqData->getSize(), inputFileHandler->getLineLength(), _options->GetKmerLength());
-	for (int i = 0; i < streamCount; i++) {
-		_vacantStreams.insert(gpuStreams[i]);
+	_gpuStreams = PrepareGPU(_streamCount, fastqData->getSize(), inputFileHandler->getLineLength(), _options->GetKmerLength());
+	for (int i = 0; i < _streamCount; i++) {
+		_vacantStreams.insert(_gpuStreams[i]);
 	}
 
 	while (fastqData != NULL) {
@@ -160,17 +186,16 @@ void KMerCounter::Start() {
 	_processing_done = true;
 	finalizer.join();
 
-	FreeGPU(gpuStreams, streamCount);
+	FreeGPU(_gpuStreams, _streamCount);
 
-	for (int i = 0; i < streamCount; i++) {
-		GPUStream* stream = gpuStreams[i];
+	for (int i = 0; i < _streamCount; i++) {
+		GPUStream* stream = _gpuStreams[i];
 		for (list<char*>::iterator it=stream->_kmer_db.begin(); it != stream->_kmer_db.end(); ++it) {
 			delete[] (*it);
 		}
 		delete stream;
 	}
 	delete inputFileHandler;
-	delete[] gpuStreams;
 
 	// Count KMers with Merged Files
 //	_kMerFileMergeHandler->InputComplete();

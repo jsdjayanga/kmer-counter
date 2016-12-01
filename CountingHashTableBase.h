@@ -46,14 +46,15 @@ class CountingHashTableBase {
 private:
 	char* _d_data_buffer;
 	uint64_t _kmer_db_size;
-	uint64_t _kmer_db_record_count;
-	uint64_t _kmer_db_max_record_count;
+	int64_t _kmer_db_record_count;
+	int64_t _kmer_db_max_record_count;
 	KmerKeyValue<key_size>* _d_kmer_db;
 
+	char* _h_failed_data_buffer;
 	char* _d_failed_data_buffer;
 	uint64_t _failed_kmer_size;
-	uint64_t _failed_kmer_entries_count;
-	uint64_t _failed_kmer_max_entry_count;
+	int64_t _failed_kmer_entries_count;
+	int64_t _failed_kmer_max_entry_count;
 	KmerKeyValue<key_size>* _d_failed_kmer_entires;
 
 	// Environment information
@@ -92,6 +93,8 @@ public:
 		_d_kmer_db = (KmerKeyValue<key_size>*)_d_data_buffer;
 		_d_failed_kmer_entires = (KmerKeyValue<key_size>*)_d_failed_data_buffer;
 
+//		_h_failed_data_buffer = new char[_failed_kmer_size];
+
 		// create streams
 		_cuda_streams = new cudaStream_t[_no_of_streams];
 		for (uint32_t i = 0; i < _no_of_streams; i++) {
@@ -124,10 +127,19 @@ public:
 		CUDA_CHECK_RETURN(cudaSetDevice(_device_id));
 		CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
+//		CUDA_CHECK_RETURN(cudaMemcpy(_h_failed_data_buffer, _d_failed_data_buffer, _failed_kmer_size, cudaMemcpyDeviceToHost));
+//		UpdateCounters();
+
 		// reset allocated memory
 		CUDA_CHECK_RETURN(cudaMemset(_d_data_buffer, 0, _kmer_db_size));
-		CUDA_CHECK_RETURN(cudaMemset(_d_failed_data_buffer, 0, _failed_kmer_size));
+//		CUDA_CHECK_RETURN(cudaMemset(_d_failed_data_buffer, 0, _failed_kmer_size));
 		CUDA_CHECK_RETURN(cudaMemset(_d_cuda_counters, 0, _cuda_counters_per_stream * _no_of_streams * sizeof(uint64_t)));
+
+		UpdateCounters();
+		if (_failed_kmer_entries_count > 0) {
+			Insert((KmerKeyValue<key_size>*)_d_failed_data_buffer, _failed_kmer_entries_count);
+		}
+		CUDA_CHECK_RETURN(cudaMemset(_d_failed_data_buffer, 0, _failed_kmer_size));
 
 		_kmer_db_record_count = 0;
 		_failed_kmer_entries_count = 0;
@@ -240,6 +252,51 @@ public:
 
 		output_file_0.close();
 
+	}
+
+	void TempDump() {
+		std::ofstream output_file_0("/tmp/1/0", std::ofstream::out | std::ofstream::app);
+		std::ofstream output_file_1("/tmp/1/1", std::ofstream::out | std::ofstream::app);
+		std::ofstream output_file_2("/tmp/1/2", std::ofstream::out | std::ofstream::app);
+		std::ofstream output_file_3("/tmp/1/3", std::ofstream::out | std::ofstream::app);
+
+		char* data = new char[_kmer_db_size];
+		CUDA_CHECK_RETURN(cudaMemcpy(data, ((char*)_d_kmer_db), _kmer_db_size, cudaMemcpyDeviceToHost));
+
+		std::ofstream* output_file = NULL;
+		for (int64_t j = 0; j < _kmer_db_size; j += sizeof(KmerKeyValue<key_size>)) {
+			KmerKeyValue<key_size>* key_value = (KmerKeyValue<key_size>*)(data + j);
+			if (key_value->getCount() > 0) {
+				int32_t first_letter = *(uint64_t*)(&key_value->getKey()) >> 62;
+				switch(first_letter) {
+				case 0:
+					output_file = &output_file_0;
+					break;
+				case 1:
+					output_file = &output_file_1;
+					break;
+				case 2:
+					output_file = &output_file_2;
+					break;
+				case 3:
+					output_file = &output_file_3;
+					break;
+				default:
+					printf("ERROR: Wring starting letter : %i", first_letter);
+					continue;
+				}
+				output_file->write((data + j), sizeof(KmerKeyValue<key_size>) - sizeof(KmerKey<key_size>));
+				uint32_t count = (uint32_t)key_value->getCount();
+				output_file->write((char*)&count, sizeof(uint32_t));
+			}
+		}
+
+		delete[] data;
+
+		output_file_0.close();
+		output_file_1.close();
+		output_file_2.close();
+		output_file_3.close();
 	}
 };
 
