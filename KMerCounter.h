@@ -24,6 +24,7 @@
 #include "KMerFileMergeHandler.h"
 #include "GPUHandler.h"
 #include <unordered_map>
+#include "CountingHashTable.h"
 
 
 using namespace std;
@@ -90,6 +91,8 @@ private:
 
     concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
     //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
+
+    CountingHashTable<1>* _countingHashTable;
 };
 
 

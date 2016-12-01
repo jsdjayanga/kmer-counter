@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
+#include "KmerKeyValue.h"
 
 uint32_t __kmer_record_size;
 
@@ -40,6 +41,8 @@ KMerCounter::KMerCounter(Options* options) {
 			_options->getNoOfMergersAtOnce(), _options->getNoOfMergeThreads());
 
 	_processing_done = false;
+
+	_countingHashTable = new CountingHashTable<1>(0, 1, 800 * 1000 * 1000, 50 * 1000 * 1000);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -58,28 +61,35 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 //	tempFilename << _options->getTempFileLocation() << "/" << readId;
 //	_kMerFileMergeHandler->AddFile(tempFilename.str());
 
-	for (uint64_t i = 0; i < outputSize; i += __kmer_record_size) {
+//	for (uint64_t i = 0; i < outputSize; i += __kmer_record_size) {
+//
+//		char* kmer_db = NULL;
+//		if (gpuStream->_kmer_db_line_index + __kmer_record_size < gpuStream->_kmer_db_line_length) {
+//			kmer_db = gpuStream->_kmer_db.front();
+//		} else {
+//			gpuStream->_kmer_db.push_front(new char[gpuStream->_kmer_db_line_length]);
+//			gpuStream->_kmer_db_line_index = 0;
+//			kmer_db = gpuStream->_kmer_db.front();
+//		}
+//
+//		memcpy(kmer_db + gpuStream->_kmer_db_line_index, gpuStream->_h_output + i, __kmer_record_size - sizeof(uint32_t));
+//
+//		concurrent_hash_map<char*, uint32_t, MyHasher>::accessor acc;
+//		if (_con_hashtable.emplace(acc, kmer_db + gpuStream->_kmer_db_line_index,
+//				*(uint32_t*)(gpuStream->_h_output + i + __kmer_record_size - sizeof(uint32_t)))) {
+//			gpuStream->_kmer_db_line_index += (__kmer_record_size - sizeof(uint32_t));
+//		} else {
+//			//printf("========================= match found stream:%i\n", gpuStream->_id);
+//			acc->second = acc->second + *(uint32_t*)(gpuStream->_h_output + i + __kmer_record_size - sizeof(uint32_t));
+//		}
+//	}
 
-		char* kmer_db = NULL;
-		if (gpuStream->_kmer_db_line_index + __kmer_record_size < gpuStream->_kmer_db_line_length) {
-			kmer_db = gpuStream->_kmer_db.front();
-		} else {
-			gpuStream->_kmer_db.push_front(new char[gpuStream->_kmer_db_line_length]);
-			gpuStream->_kmer_db_line_index = 0;
-			kmer_db = gpuStream->_kmer_db.front();
-		}
 
-		memcpy(kmer_db + gpuStream->_kmer_db_line_index, gpuStream->_h_output + i, __kmer_record_size - sizeof(uint32_t));
+	bool capable = false;
+	const uint64_t no_of_records = outputSize / 16;
+	capable = _countingHashTable->Insert((KmerKeyValue<1>*) gpuStream->_d_output, no_of_records);
 
-		concurrent_hash_map<char*, uint32_t, MyHasher>::accessor acc;
-		if (_con_hashtable.emplace(acc, kmer_db + gpuStream->_kmer_db_line_index,
-				*(uint32_t*)(gpuStream->_h_output + i + __kmer_record_size - sizeof(uint32_t)))) {
-			gpuStream->_kmer_db_line_index += (__kmer_record_size - sizeof(uint32_t));
-		} else {
-			//printf("========================= match found stream:%i\n", gpuStream->_id);
-			acc->second = acc->second + *(uint32_t*)(gpuStream->_h_output + i + __kmer_record_size - sizeof(uint32_t));
-		}
-	}
+	printf("========================= outsize: %"PRIu64", capable=%i\n", outputSize, capable);
 
 	_rec_mtx.lock();
 	_vacantStreams.insert(gpuStream);
@@ -95,14 +105,16 @@ void KMerCounter::DumpResults() {
 //		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _con_uo_hashtable.size());
 	}
 
-	ofstream output_file(_options->getOutputFile());
-	for (auto it = _con_hashtable.begin(); it != _con_hashtable.end(); ++it) {
-//	for (auto it = _con_uo_hashtable.begin(); it != _con_uo_hashtable.end(); ++it) {
-		//std::cout << " " << it->first << ":" << it->second;
-		output_file.write(it->first, 8);
-		output_file.write((char*)&(it->second), 4);
-	}
-	output_file.close();
+//	ofstream output_file(_options->getOutputFile());
+//	for (auto it = _con_hashtable.begin(); it != _con_hashtable.end(); ++it) {
+////	for (auto it = _con_uo_hashtable.begin(); it != _con_uo_hashtable.end(); ++it) {
+//		//std::cout << " " << it->first << ":" << it->second;
+//		output_file.write(it->first, 8);
+//		output_file.write((char*)&(it->second), 4);
+//	}
+//	output_file.close();
+
+	_countingHashTable->Dump();
 }
 
 void KMerCounter::Start() {

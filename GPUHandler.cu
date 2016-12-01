@@ -219,9 +219,9 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output, uint64_t
 					readValue1 = 0;
 					readValue2 = 0;
 				}
-				uint32_t count = 1;
-				memcpy(&output[index + outputIndex], &count, sizeof(uint32_t));
-				outputIndex += sizeof(uint32_t);
+				uint64_t count = 1;
+				memcpy(&output[index + outputIndex], &count, sizeof(uint64_t));
+				outputIndex += sizeof(uint64_t);
 
 				filterReadLength--;
 			}
@@ -240,7 +240,7 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength, int64_t kmer
 		kmerStoreSize++;
 	}
 	kmerStoreSize *= 8;
-	kmerStoreSize += 4;
+	kmerStoreSize += 8;
 	return kmerCount * kmerStoreSize * records;
 }
 
@@ -457,13 +457,13 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 //	cudaErrorCheck(cudaPeekAtLastError());
 //	cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
-	cudaErrorCheck(cudaMemcpyAsync(gpuStream->_h_output, gpuStream->_d_output, outputSize, cudaMemcpyDeviceToHost, gpuStream->stream));
+//	cudaErrorCheck(cudaMemcpyAsync(gpuStream->_h_output, gpuStream->_d_output, outputSize, cudaMemcpyDeviceToHost, gpuStream->stream));
 	//uint64_t validRecordStartPoint = getStartOfValidRecords(h_output, kmerLength, outputSize);
 
 //	for (uint64_t ind = 0; ind < outputSize; ind += 12) {
 //		printf("====test==%"PRIu64", %u\n", *(uint64_t*)(h_output + ind), *(uint32_t*)(h_output + ind + 8));
 //	}
-	uint64_t size = reduceKMers(gpuStream->_h_output, kmerLength, outputSize);
+//	uint64_t size = reduceKMers(gpuStream->_h_output, kmerLength, outputSize);
 //
 //	fileDump.dumpKmersToFile(readId, gpuStream->_h_output, size);
 //	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
@@ -473,7 +473,8 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 //	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
 
 
-	return size;
+//	return size;
+	return outputSize;
 }
 
 GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength) {
