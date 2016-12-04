@@ -3,6 +3,7 @@
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 #include <thrust/execution_policy.h>
+#include <thrust/device_vector.h>
 #include "GPUHandler.h"
 #include "KMerCounterUtils.h"
 
@@ -127,13 +128,20 @@ __device__ uint64_t read64bits(char* input, int64_t index) {
 }
 
 __global__ void extractKMers(char* input, char* bitFilter, char*output, uint64_t sectionLength, int64_t kmerLength,
-		int64_t upperBound, int64_t lineLength) {
+		int64_t upperBound, int64_t lineLength, char* thrustData, uint64_t* thrustDataCounter) {
 	uint64_t index = (blockIdx.x * blockDim.x + threadIdx.x) * sectionLength;
 	uint64_t filterIndex = (blockIdx.x * blockDim.x + threadIdx.x) * lineLength;
+
+//	__shared__ int sFlag;
+//	if (threadIdx.x == 0) {
+//		sFlag = 0;
+//	}
+//	__syncthreads();
 
 	if (filterIndex > upperBound - lineLength) {
 		return;
 	}
+
 
 //printf("================================extract=========================================:index=%"PRIu64"\n", filterIndex);
 
@@ -219,9 +227,9 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output, uint64_t
 					readValue1 = 0;
 					readValue2 = 0;
 				}
-				uint64_t count = 1;
-				memcpy(&output[index + outputIndex], &count, sizeof(uint64_t));
-				outputIndex += sizeof(uint64_t);
+//				uint64_t count = 1;
+//				memcpy(&output[index + outputIndex], &count, sizeof(uint64_t));
+//				outputIndex += sizeof(uint64_t);
 
 				filterReadLength--;
 			}
@@ -230,6 +238,18 @@ __global__ void extractKMers(char* input, char* bitFilter, char*output, uint64_t
 			filterReadLength = 0;
 		}
 	}
+
+//	int singleFlag = atomicAdd(&sFlag, 1);
+//	if ( singleFlag == 0) {
+
+//		printf("==========================================================putputIndex=%"PRIu64"\n", outputIndex);
+
+		uint64_t thrustDataIndex = atomicAdd((unsigned long long int*)thrustDataCounter, (unsigned long long int)outputIndex);
+
+//		printf("==========================================================Indexto erite thrust data=%"PRIu64"\n", thrustDataIndex);
+
+		memcpy(thrustData + thrustDataIndex, output + index, outputIndex);
+//	}
 }
 
 uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength, int64_t kmerLength) {
@@ -240,7 +260,7 @@ uint64_t calculateOutputSize(int64_t inputSize, int64_t lineLength, int64_t kmer
 		kmerStoreSize++;
 	}
 	kmerStoreSize *= 8;
-	kmerStoreSize += 8;
+//	kmerStoreSize += 8;
 	return kmerCount * kmerStoreSize * records;
 }
 
@@ -297,30 +317,30 @@ public:
 	}
 };
 
-void sortKmers(char* d_output, uint64_t kmerLength, uint64_t outputSize, cudaStream_t& stream) {
+void sortKmers(char* d_data, uint64_t kmerLength, uint64_t outputSize) {
 	uint64_t kmerStoreSize = kmerLength / 32;
 	if (kmerLength % 32 > 0) {
 		kmerStoreSize++;
 	}
 	kmerStoreSize *= 8;
-	kmerStoreSize += 4;
+//	kmerStoreSize += 8;
 
 	if (kmerLength <= 32) {
-		printf("invoking ==== KMer32Comparator");
-		thrust::device_ptr<KMer32> d_Kmers((KMer32*) d_output);
-		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
+		printf("invoking ==== KMer32Comparator\n");
+		thrust::device_ptr<KMer32> d_Kmers((KMer32*) d_data);
+		thrust::sort(thrust::cuda::par, d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer32Comparator());
 	} else if (kmerLength <= 64) {
-		printf("invoking ==== KMer64Comparator");
-		thrust::device_ptr<KMer64> d_Kmers((KMer64*) d_output);
-		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer64Comparator());
+		printf("invoking ==== KMer64Comparator\n");
+		thrust::device_ptr<KMer64> d_Kmers((KMer64*) d_data);
+		thrust::sort(thrust::cuda::par, d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer64Comparator());
 	} else if (kmerLength <= 96) {
-		printf("invoking ==== KMer96Comparator");
-		thrust::device_ptr<KMer96> d_Kmers((KMer96*) d_output);
-		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer96Comparator());
+		printf("invoking ==== KMer96Comparator\n");
+		thrust::device_ptr<KMer96> d_Kmers((KMer96*) d_data);
+		thrust::sort(thrust::cuda::par, d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer96Comparator());
 	} else if (kmerLength <= 128) {
-		printf("invoking ==== KMer128Comparator");
-		thrust::device_ptr<KMer128> d_Kmers((KMer128*) d_output);
-		thrust::sort(thrust::cuda::par.on(stream), d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer128Comparator());
+		printf("invoking ==== KMer128Comparator\n");
+		thrust::device_ptr<KMer128> d_Kmers((KMer128*) d_data);
+		thrust::sort(thrust::cuda::par, d_Kmers, d_Kmers + (outputSize / kmerStoreSize), KMer128Comparator());
 	} else {
 		printf("Sorting is not supported for kmers with length higher than %"PRIu64"\n", kmerLength);
 	}
@@ -394,13 +414,23 @@ uint64_t reduceKMers(char* h_output, uint64_t kmerLength, uint64_t outputSize) {
 //	return outputSize;
 //}
 
-int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
+bool processKMers(GPUStream* gpuStream, GPUThrustData* gpuThrustData, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump) {
-	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
-	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 
 	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
 	printf("Output size =============%"PRIu64"\n", outputSize);
+
+	gpuThrustData->_rec_mtx.lock();
+	if (gpuThrustData->_length + outputSize < gpuThrustData->_capacity) {
+		gpuThrustData->_length += outputSize;
+	} else {
+		gpuThrustData->_rec_mtx.unlock();
+		return false;
+	}
+	gpuThrustData->_rec_mtx.unlock();
+
+	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
+	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 
 
 	memset(gpuStream->_h_output, 0, outputSize);
@@ -439,7 +469,9 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 					outputSize / (inputSize / lineLength),
 					kmerLength,
 					inputSize - (totalThread * lineLength * ite),
-					lineLength);
+					lineLength,
+					gpuThrustData->_d_data,
+					gpuThrustData->_d_counts);
 			cudaErrorCheck(cudaPeekAtLastError());
 			cudaErrorCheck(cudaStreamSynchronize(gpuStream->stream));
 
@@ -469,13 +501,103 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 //	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
-	printf("After Sort\n");
+//	printf("After Sort\n");
 //	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
 
-
+	return true;
 //	return size;
-	return outputSize;
+//	return outputSize;
 }
+
+
+
+void thrustReduceKmers(GPUThrustData* gpuThrustData, uint64_t kmerLength, uint64_t data_length,
+		thrust::device_vector<KMer32>& keys_out, thrust::device_vector<int32_t>& lengths) {
+	uint64_t kmerStoreSize = kmerLength / 32;
+	if (kmerLength % 32 > 0) {
+		kmerStoreSize++;
+	}
+	kmerStoreSize *= 8;
+
+	thrust::device_ptr<KMer32> dp_data_in((KMer32*)gpuThrustData->_d_data);
+	thrust::device_ptr<KMer32> dp_data_in2((KMer32*)gpuThrustData->_d_data + (data_length / sizeof(KMer32)));
+
+//	thrust::device_vector<KMer32> keys_out(data_length / sizeof(KMer32));
+//	thrust::device_vector<int32_t> lengths(data_length / sizeof(KMer32));
+
+	int rsize = thrust::reduce_by_key(dp_data_in,
+			dp_data_in2,
+			thrust::constant_iterator<int>(1),
+			keys_out.begin(),
+			lengths.begin(),
+			equal_key()).first - keys_out.begin();
+
+//	  for (int i = 0; i < rsize; i++){
+//		  KMer32 temp = keys_out[i];
+//	    int len = lengths[i];
+//	    printf("%"PRIu64" %"PRIu64"\n", temp.kmer[0], len);
+//	  }
+}
+
+ThrustProcessedResut* processThrust(GPUThrustData* gpuThrustData, int64_t kmerLength) {
+	cudaErrorCheck(cudaDeviceSynchronize());
+
+	uint64_t d_length = 0;
+	cudaErrorCheck(cudaMemcpy(&d_length, gpuThrustData->_d_counts, sizeof(uint64_t), cudaMemcpyDeviceToHost));
+	sortKmers(gpuThrustData->_d_data, kmerLength, d_length);
+
+	printf("=========processThrust after sort, gpuThrustData->_length=: %"PRIu64", dev_len%"PRIu64", size of KM32=%i\n", gpuThrustData->_length, d_length, sizeof(KMer32));
+
+	thrust::device_vector<KMer32> keys_out(d_length / sizeof(KMer32));
+	thrust::device_vector<int32_t> lengths(d_length / sizeof(KMer32));
+	thrustReduceKmers(gpuThrustData, kmerLength, d_length, keys_out, lengths);
+
+	cudaErrorCheck(cudaDeviceSynchronize());
+
+	printf("=========processThrust Completed\n");
+
+	gpuThrustData->_rec_mtx.lock();
+	cudaErrorCheck(cudaMemset(gpuThrustData->_d_data, 0, gpuThrustData->_capacity));
+	cudaErrorCheck(cudaMemset(gpuThrustData->_d_counts, 0, sizeof(uint64_t) * 2));
+	gpuThrustData->_length = 0;
+	gpuThrustData->_rec_mtx.unlock();
+
+//	thrust::device_ptr<KMer32> dvp_keys(keys_out.data());
+//	thrust::device_ptr<KMer32> dvp_lengths(keys_out.data());
+
+//	KMer32* dvrp_keys = thrust::raw_pointer_cast(dvp_keys);
+//	KMer32* dvrp_lengths = thrust::raw_pointer_cast(dvp_lengths);
+
+	uint64_t count = keys_out.size();
+	char* temp_keys = new char[count * sizeof(KMer32)];
+	char* temp_values = new char[count * sizeof(uint32_t)];
+
+	thrust::copy(keys_out.begin(), keys_out.end(), (KMer32*)temp_keys);
+	thrust::copy(lengths.begin(), lengths.end(), (uint32_t*)temp_values);
+	ThrustProcessedResut* tps = new ThrustProcessedResut(count, temp_keys, temp_values);
+//	memcpy(data + sizeof(uint64_t), &count, sizeof(uint64_t));
+
+//	thrust::host_vector<KMer32> h_keys_out = keys_out;
+//	thrust::host_vector<int32_t> h_lengths = lengths;
+//	return std::pair<thrust::host_vector<KMer32>, thrust::host_vector<int32_t>>(h_keys_out, h_lengths);
+
+	return tps;
+
+//	char* data = new char[d_length];
+//	cudaErrorCheck(cudaMemcpy(data, ((char*)gpuThrustData->_d_data), d_length, cudaMemcpyDeviceToHost));
+//	for(int i = 0 ; i < d_length; i+=8) {
+//		printf("=========: %"PRIu64", ", *(uint64_t*)(data + i));
+//	}
+//	printf("\n");
+
+//	int rsize = keys_out.size();
+//	for (int i = 0; i < rsize; i++){
+//		KMer32 temp = keys_out[i];
+//		int len = lengths[i];
+//		printf("%"PRIu64" %"PRIu64"\n", temp.kmer[0], len);
+//	}
+}
+
 
 GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength) {
 	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
@@ -507,6 +629,19 @@ GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLe
 		//printf("GPU stream created: %i\n", index);
 	}
 	return gpuStreams;
+}
+
+GPUThrustData* PrepareGPUForThrust(uint64_t size) {
+	char* d_data;
+	uint64_t* d_counts;
+	cudaErrorCheck(cudaMalloc((void ** ) &d_data, size));
+	cudaErrorCheck(cudaMalloc((void ** ) &d_counts, sizeof(uint64_t) * 2));
+
+	cudaErrorCheck(cudaMemset(d_data, 0, size));
+	cudaErrorCheck(cudaMemset(d_counts, 0, sizeof(uint64_t) * 2));
+
+	GPUThrustData* gpuTD = new GPUThrustData(d_data, d_counts, size);
+	return gpuTD;
 }
 
 void FreeGPU(GPUStream** streams, uint32_t streamCount) {

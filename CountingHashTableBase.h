@@ -13,9 +13,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fstream>
+#include <sstream>
 //#include <stdexcept>
 #include <inttypes.h>
 #include "KmerKeyValue.h"
+#include "KMerSizes.h"
 
 /**
  * This macro checks return value of the CUDA runtime call and exits
@@ -30,7 +32,6 @@
 	} }
 
 
-
 //template<class KeyType>
 //constexpr uint32_t key_size() {
 //	return sizeof(KeyType) / sizeof(uint64_t);
@@ -40,6 +41,8 @@ template<uint32_t key_size>
 extern void InsertToHashTable(KmerKeyValue<key_size>* input, uint32_t no_of_keys_per_stream, cudaStream_t stream,
 		KmerKeyValue<key_size>* kmer_db, uint64_t kmer_db_max_record_count, uint64_t* cuda_counters);
 
+
+extern void sortKmerDB(KMer32* d_kmer_db, uint64_t kmer_db_max_record_count);
 
 template<uint32_t key_size>
 class CountingHashTableBase {
@@ -65,6 +68,8 @@ private:
 	uint64_t* _h_cuda_counters;
 	uint64_t* _d_cuda_counters;
 	uint64_t _cuda_counters_per_stream;
+
+	uint32_t _temp_file_id;
 
 public:
 	CountingHashTableBase(const uint32_t device_id, const uint32_t no_of_streams, const uint32_t kmer_db_size, const uint32_t kmer_failed_db_size) :
@@ -104,6 +109,8 @@ public:
 		// other
 		_kmer_db_max_record_count = _kmer_db_size / sizeof(KmerKeyValue<key_size> );
 		_failed_kmer_max_entry_count = _failed_kmer_size / sizeof(KmerKeyValue<key_size>);
+
+		_temp_file_id = 0;
 
 		Init();
 	}
@@ -228,6 +235,10 @@ public:
 
 		CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
+		printf("Sorting Kmer DB...on Dump\n");
+		sortKmerDB((KMer32*)_d_kmer_db, _kmer_db_max_record_count);
+
+
 		uint64_t read_size = 0;
 		uint64_t temp_buffer_size = sizeof(KmerKeyValue<key_size>) * 1000;
 		char* temp = new char[temp_buffer_size];
@@ -255,48 +266,90 @@ public:
 	}
 
 	void TempDump() {
-		std::ofstream output_file_0("/tmp/1/0", std::ofstream::out | std::ofstream::app);
-		std::ofstream output_file_1("/tmp/1/1", std::ofstream::out | std::ofstream::app);
-		std::ofstream output_file_2("/tmp/1/2", std::ofstream::out | std::ofstream::app);
-		std::ofstream output_file_3("/tmp/1/3", std::ofstream::out | std::ofstream::app);
+		std::stringstream sstm;
+		sstm << "/tmp/1/" << _temp_file_id++;
+
+		std::ofstream output_file(sstm.str().c_str(), std::ofstream::out | std::ofstream::app);
+
+		// set device id
+		CUDA_CHECK_RETURN(cudaSetDevice(_device_id));
+
+		CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+
+		printf("Sorting Kmer DB...on TempDump\n");
+		sortKmerDB((KMer32*)_d_kmer_db, _kmer_db_max_record_count);
 
 		char* data = new char[_kmer_db_size];
 		CUDA_CHECK_RETURN(cudaMemcpy(data, ((char*)_d_kmer_db), _kmer_db_size, cudaMemcpyDeviceToHost));
 
-		std::ofstream* output_file = NULL;
+//		int64_t j = 0;
+//		for (; j < _kmer_db_size; j += sizeof(KmerKeyValue<key_size>)) {
+//			KmerKeyValue<key_size>* key_value = (KmerKeyValue<key_size>*)(data + j);
+//			if (key_value->getCount() != 0) {
+//				break;
+//			}
+//		}
+//		output_file.write((data + j), _kmer_db_size - j);
+
+
 		for (int64_t j = 0; j < _kmer_db_size; j += sizeof(KmerKeyValue<key_size>)) {
 			KmerKeyValue<key_size>* key_value = (KmerKeyValue<key_size>*)(data + j);
 			if (key_value->getCount() > 0) {
-				int32_t first_letter = *(uint64_t*)(&key_value->getKey()) >> 62;
-				switch(first_letter) {
-				case 0:
-					output_file = &output_file_0;
-					break;
-				case 1:
-					output_file = &output_file_1;
-					break;
-				case 2:
-					output_file = &output_file_2;
-					break;
-				case 3:
-					output_file = &output_file_3;
-					break;
-				default:
-					printf("ERROR: Wring starting letter : %i", first_letter);
-					continue;
-				}
-				output_file->write((data + j), sizeof(KmerKeyValue<key_size>) - sizeof(KmerKey<key_size>));
+				output_file.write((data + j), sizeof(KmerKeyValue<key_size>) - sizeof(KmerKey<key_size>));
 				uint32_t count = (uint32_t)key_value->getCount();
-				output_file->write((char*)&count, sizeof(uint32_t));
+				output_file.write((char*)&count, sizeof(uint32_t));
 			}
 		}
 
 		delete[] data;
+		output_file.close();
 
-		output_file_0.close();
-		output_file_1.close();
-		output_file_2.close();
-		output_file_3.close();
+
+
+//		std::ofstream output_file_0("/tmp/1/0", std::ofstream::out | std::ofstream::app);
+//		std::ofstream output_file_1("/tmp/1/1", std::ofstream::out | std::ofstream::app);
+//		std::ofstream output_file_2("/tmp/1/2", std::ofstream::out | std::ofstream::app);
+//		std::ofstream output_file_3("/tmp/1/3", std::ofstream::out | std::ofstream::app);
+//
+//		sortKmerDB(_d_kmer_db, _kmer_db_max_record_count);
+//
+//		char* data = new char[_kmer_db_size];
+//		CUDA_CHECK_RETURN(cudaMemcpy(data, ((char*)_d_kmer_db), _kmer_db_size, cudaMemcpyDeviceToHost));
+//
+//		std::ofstream* output_file = NULL;
+//		for (int64_t j = 0; j < _kmer_db_size; j += sizeof(KmerKeyValue<key_size>)) {
+//			KmerKeyValue<key_size>* key_value = (KmerKeyValue<key_size>*)(data + j);
+//			if (key_value->getCount() > 0) {
+//				int32_t first_letter = *(uint64_t*)(&key_value->getKey()) >> 62;
+//				switch(first_letter) {
+//				case 0:
+//					output_file = &output_file_0;
+//					break;
+//				case 1:
+//					output_file = &output_file_1;
+//					break;
+//				case 2:
+//					output_file = &output_file_2;
+//					break;
+//				case 3:
+//					output_file = &output_file_3;
+//					break;
+//				default:
+//					printf("ERROR: Wring starting letter : %i", first_letter);
+//					continue;
+//				}
+//				output_file->write((data + j), sizeof(KmerKeyValue<key_size>) - sizeof(KmerKey<key_size>));
+//				uint32_t count = (uint32_t)key_value->getCount();
+//				output_file->write((char*)&count, sizeof(uint32_t));
+//			}
+//		}
+//
+//		delete[] data;
+//
+//		output_file_0.close();
+//		output_file_1.close();
+//		output_file_2.close();
+//		output_file_3.close();
 	}
 };
 

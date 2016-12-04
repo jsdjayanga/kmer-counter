@@ -1,5 +1,8 @@
 #include "CountingHashTable.h"
 #include <inttypes.h>
+#include <thrust/sort.h>
+#include <thrust/device_ptr.h>
+#include <thrust/execution_policy.h>
 
 const uint32_t MAX_TRIALS = 60;
 
@@ -87,6 +90,29 @@ __global__ void StartInsertionKernel(KmerKeyValue<key_size>* d_input, uint32_t n
 	}
 }
 
+
+class KMer32Comparator1 {
+public:
+	__device__ __host__
+	bool operator()(const KMer32 &c1, const KMer32 &c2) {
+		printf("=======================%"PRIu64", "PRIu64"\n", c1.kmer[0], c2.kmer[0]);
+		return c1.kmer[0] < c2.kmer[0];
+	}
+};
+
+
+void sortKmerDB(KMer32* d_kmer_db, uint64_t kmer_db_max_record_count) {
+
+	printf("Calling thrust sort on %"PRIu64", maxcount=%"PRIu64"\n", d_kmer_db, kmer_db_max_record_count);
+
+	thrust::device_ptr<KMer32> dp_kmer_db(d_kmer_db);
+	thrust::sort(thrust::cuda::par, dp_kmer_db, dp_kmer_db + kmer_db_max_record_count, KMer32Comparator1());
+
+	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+
+	printf("Calling thrust sort completed %"PRIu64", maxcount=%"PRIu64"\n", d_kmer_db, kmer_db_max_record_count);
+}
+
 template<uint32_t key_size>
 void InsertToHashTable(KmerKeyValue<key_size>* d_input, uint32_t no_of_keys_per_stream, cudaStream_t stream,
 		KmerKeyValue<key_size>* kmer_db, uint64_t kmer_db_max_record_count, uint64_t* cuda_counters) {
@@ -106,6 +132,12 @@ EXPORT(1);
 EXPORT(2);
 EXPORT(3);
 EXPORT(4);
+
+//#define EXPORT(x) template sortKmerDB(KMer32* d_kmer_db, uint64_t kmer_db_max_record_count);
+//EXPORT(1);
+//EXPORT(2);
+//EXPORT(3);
+//EXPORT(4);
 
 
 

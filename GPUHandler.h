@@ -19,6 +19,8 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <list>
+#include <mutex>
+#include <thrust/host_vector.h>
 #include "FileDump.h"
 #include "KMerSizes.h"
 
@@ -32,6 +34,21 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
 			exit(code);
 	}
 }
+
+struct GPUThrustData {
+	GPUThrustData(char* d_data, uint64_t* d_counts, uint64_t capacity) {
+		_d_data = d_data;
+		_d_counts= d_counts;
+		_capacity = capacity;
+		_length = 0;
+	}
+
+	char* _d_data;
+	uint64_t* _d_counts;
+	uint64_t _capacity;
+	uint64_t _length;
+	recursive_mutex _rec_mtx;
+};
 
 struct GPUStream {
 	GPUStream(uint32_t id, char* h_output, char* d_input, char* d_output, char* d_filter) {
@@ -60,11 +77,48 @@ struct GPUStream {
 	uint64_t _kmer_db_line_index;
 };
 
+struct ThrustProcessedResut{
+	ThrustProcessedResut(uint64_t count, char* keys, char* values) {
+		_count = count;
+		_keys = keys;
+		_values = values;
+	}
+
+	~ThrustProcessedResut() {
+		delete[] _keys;
+		delete[] _values;
+	}
+	uint64_t _count;
+	char* _keys;
+	char* _values;
+};
+
+struct equal_key{
+	__host__ __device__ bool operator()(KMer32 c1, KMer32 c2){
+		if (c1.kmer[0] == c2.kmer[0]) {
+			return true;
+		}
+		return false;
+	}
+};
+
+struct lessthan_key{
+	__host__ __device__ bool operator()(KMer32 c1, KMer32 c2){
+		if (c1.kmer[0] < c2.kmer[0]) {
+			return true;
+		}
+		return false;
+	}
+};
+
+GPUThrustData* PrepareGPUForThrust(uint64_t size);
 GPUStream** PrepareGPU(uint32_t streamCount, uint64_t inputSize, uint64_t lineLength, int64_t kmerLength);
 void FreeGPU(GPUStream** streams, uint32_t streamCount);
 
-int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
+bool processKMers(GPUStream* gpuStream, GPUThrustData* gpuThrustData, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump);
+
+ThrustProcessedResut* processThrust(GPUThrustData* gpuThrustData, int64_t kmerLength);
 
 void printBitEncodedResult(char* d_input, char* d_filter, uint64_t inputSize, uint64_t lineLength);
 void printKmerResult(char* d_output, uint64_t outputSize, uint64_t kmerLength);

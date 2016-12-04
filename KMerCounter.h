@@ -25,6 +25,8 @@
 #include "GPUHandler.h"
 #include <unordered_map>
 #include "CountingHashTable.h"
+#include <list>
+#include <thrust/host_vector.h>
 
 
 using namespace std;
@@ -83,18 +85,26 @@ private:
     set<GPUStream*> _vacantStreams;
     uint32_t _streamCount;
     GPUStream** _gpuStreams;
+    GPUThrustData* _gpuThrustData;
     
     int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
     void dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId);
     void DumpResults();
+    void MergeData(list<ThrustProcessedResut*> data, bool write_to_file);
 
-
+    bool _input_done;
     bool _processing_done;
 
-    concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
-    //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
+    list<ThrustProcessedResut*> _host_data_list;
+    uint64_t _host_data_size;
+    uint64_t _host_data_max_size;
 
-    CountingHashTable<1>* _countingHashTable;
+    uint32_t _temp_file_id;
+
+//    concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
+//    //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
+//
+//    CountingHashTable<1>* _countingHashTable;
 };
 
 
