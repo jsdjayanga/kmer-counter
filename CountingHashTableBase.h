@@ -151,7 +151,7 @@ public:
 
 		// TODO : find the proper ratio for this
 		if (no_of_keys * 1.25 > _kmer_db_max_record_count - _kmer_db_record_count
-				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count < no_of_keys / 2) {
+				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count > no_of_keys / 2) {
 			// there is a possibility that all keys would not get inserted.
 			return false;
 		}

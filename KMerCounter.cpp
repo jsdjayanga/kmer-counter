@@ -42,9 +42,10 @@ KMerCounter::KMerCounter(Options* options) {
 	_kMerFileMergeHandler = new KMerFileMergeHandler(_options->getOutputFile(), _options->GetKmerLength(),
 			_options->getNoOfMergersAtOnce(), _options->getNoOfMergeThreads());
 
+	_input_complete = false;
 	_processing_done = false;
 
-	_countingHashTable = new CountingHashTable<1>(0, 1, 800 * 1000 * 1000, 50 * 1000 * 1000);
+	_countingHashTable = new CountingHashTable<1>(0, 1, 150 * 1000 * 1000, 10 * 1000 * 1000);
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -124,7 +125,9 @@ void KMerCounter::DumpResults() {
 			}
 		}
 
-		if (count >= _streamCount) {
+		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++waiting count++++%"PRIu64"\n", count);
+
+		if (count >= _streamCount || _input_complete == true) {
 			printf("======================================Dumping files\n");
 			_countingHashTable->TempDump();
 			_countingHashTable->Init();
@@ -179,6 +182,8 @@ void KMerCounter::Start() {
 
 		fastqData = inputFileHandler->read(chunkSize);
 	}
+
+	_input_complete = true;
 
 	for (std::list<thread>::iterator it=_workerThreads.begin(); it != _workerThreads.end(); ++it) {
 	    (*it).join();;
