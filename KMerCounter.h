@@ -25,6 +25,7 @@
 #include "GPUHandler.h"
 #include <unordered_map>
 #include "CountingHashTable.h"
+#include "SortedKmerMerger.h"
 
 
 using namespace std;
@@ -89,6 +90,8 @@ private:
     void dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId);
     void DumpResults();
 
+    void WriteToFile(list<std::pair<char*, uint64_t>> sorted_data, string filename);
+
 
     bool _processing_done;
 
@@ -96,6 +99,13 @@ private:
     //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
 
     CountingHashTable<1>* _countingHashTable;
+
+    list<std::pair<char*, uint64_t>> _sorted_data;
+    uint64_t _sorted_data_size;
+    uint64_t _sorted_data_max_size;
+    uint64_t _temp_file_id;
+
+    SortedKmerMerger* _sorted_kmer_merger;
 };
 
 

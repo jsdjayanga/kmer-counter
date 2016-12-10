@@ -12,10 +12,10 @@ all: kmer-counter
 
 ## Target: kmer-counter
 kmer-counter: cuda
-	g++ -ggdb -O0 -std=c++11 -Wl,--no-as-needed -I /usr/local/cuda/include/ -I /home/jayangad/source/sparsehash/build/include/ -I /home/jayangad/source/tbb2017_20161004oss/include -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp KMerFileHandler.cpp KMerFileReader.cpp KMerFileMerger.cpp KMerPrinter.cpp SortedKMerFile.cpp KMerFileMergeHandler.cpp GPUHandler.o CountingHashTable.o -L/usr/local/cuda/lib64 -L/home/jayangad/source/tbb2017_20161004oss/lib/intel64/gcc4.7/ -lcudart -pthread -ltbb
+	g++ -ggdb -O0 -std=c++11 -Wl,--no-as-needed -I /usr/local/cuda/include/ -I /home/jayangad/source/sparsehash/build/include/ -I /home/jayangad/source/tbb2017_20161004oss/include -o kmer-counter main.cpp FASTQData.cpp FASTQFileReader.cpp FileDump.cpp InputFileHandler.cpp KMerCounter.cpp Options.cpp KMerFileHandler.cpp KMerFileReader.cpp KMerFileMerger.cpp KMerPrinter.cpp SortedKMerFile.cpp KMerFileMergeHandler.cpp SortedKmerMerger.cpp SortedKmerFile.cpp SortedKmerFileMerger.cpp GPUHandler.o CountingHashTable.o -L/usr/local/cuda/lib64 -L/home/jayangad/source/tbb2017_20161004oss/lib/intel64/gcc4.7/ -lcudart -pthread -ltbb
 
 cuda:
-	nvcc -gencode arch=compute_20,code=sm_20 -g -G -c GPUHandler.cu CountingHashTable.cu
+	nvcc -std=c++11 -g -G -c GPUHandler.cu CountingHashTable.cu
 
 #### Clean target deletes all generated files ####
 clean: 

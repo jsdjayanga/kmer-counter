@@ -20,6 +20,7 @@
 #include "KMerCounter.h"
 #include "InputFileHandler.h"
 #include "KmerKeyValue.h"
+#include "SortedKmerFileMerger.h"
 
 uint32_t __kmer_record_size;
 
@@ -45,7 +46,15 @@ KMerCounter::KMerCounter(Options* options) {
 	_input_complete = false;
 	_processing_done = false;
 
-	_countingHashTable = new CountingHashTable<1>(0, 1, 150 * 1000 * 1000, 10 * 1000 * 1000);
+	_countingHashTable = new CountingHashTable<1>(0, 1, (uint64_t)2 * 1000 * 1000 * 1000, (uint64_t)500 * 1000 * 1000);
+
+	_sorted_data.clear();
+	_sorted_data_size = 0;
+	_sorted_data_max_size = (uint64_t)8 * 1024 * 1024 * 1024;
+
+	_temp_file_id = 0;
+
+	_sorted_kmer_merger = new SortedKmerMerger();
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -111,6 +120,44 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 	delete fastqData;
 }
 
+
+void WriteToFile32(list<std::pair<char*, uint64_t>> sorted_data, string filename) {
+	ofstream output_file(filename.c_str());
+
+	vector<std::pair<char*, uint64_t>> data{ std::begin(sorted_data), std::end(sorted_data) };
+	vector<uint64_t> indexes(data.size(), 0);
+
+	while(true) {
+		KmerKeyValue<1>* lowest = (KmerKeyValue<1>*)(data[0].first + indexes[0]);
+		for (int32_t index = 1; index < data.size(); index++) {
+			KmerKeyValue<1>* temp = (KmerKeyValue<1>*)(data[index].first + indexes[index]);
+			if (temp < lowest) {
+				lowest = temp;
+			} else if (temp == lowest) {
+				lowest->setCount(lowest->getCount() + temp->getCount());
+				if (indexes[index] + sizeof(KmerKeyValue<1>) < data[index].second) {
+					indexes[index] += sizeof(KmerKeyValue<1>);
+				} else {
+					indexes.erase(indexes.begin() + index);
+					data.erase(data.begin() + index);
+				}
+			}
+
+			uint32_t count = lowest->getCount();
+			output_file.write((char*)lowest, sizeof(KmerKey<1>));
+			output_file.write((char*)&count, sizeof(uint32_t));
+
+			if (data.empty()) {
+				break;
+			} else {
+				lowest = (KmerKeyValue<1>*)(data[0].first + indexes[0]);
+			}
+		}
+	}
+
+	output_file.close();
+}
+
 void KMerCounter::DumpResults() {
 	while (!_processing_done) {
 		this_thread::sleep_for(chrono::seconds(1));
@@ -127,13 +174,37 @@ void KMerCounter::DumpResults() {
 
 		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++waiting count++++%"PRIu64"\n", count);
 
-		if (count >= _streamCount || _input_complete == true) {
+		if (_countingHashTable->isFull()) {
 			printf("======================================Dumping files\n");
-			_countingHashTable->TempDump();
-			_countingHashTable->Init();
-			printf("======================================Dumping files completed");
+//			_countingHashTable->TempDump();
+//			_countingHashTable->Init();
+
+			uint64_t size = 0;
+			char* data = _countingHashTable->GetCreateSortedHostData(size);
+			_sorted_data.push_back(std::make_pair(data, size));
+			_sorted_data_size += size;
+
+//			for (int i = 0; i < 276 * 16; i += 16) {
+//				printf("%" PRIu64 " %" PRIu64 "\n", *(uint64_t*)(data + i), *(uint64_t*)(data + i + 8));
+//			}
+			printf("======================================Dumping files completed\n");
+		}
+
+		if (_sorted_data_size > _sorted_data_max_size) {
+			string filename = _options->getTempFileLocation() + "/" + to_string(_temp_file_id++);
+
+			list<std::pair<char*, uint64_t>> temp_sorted_data;
+			temp_sorted_data.splice(temp_sorted_data.begin(), _sorted_data);
+			_sorted_kmer_merger->Merge(temp_sorted_data, filename);
+
+			_sorted_data_size = 0;
 		}
 	}
+
+	uint64_t size = 0;
+	char* data = _countingHashTable->GetCreateSortedHostData(size);
+	_sorted_data.push_back(std::make_pair(data, size));
+	_sorted_data_size += size;
 
 //	ofstream output_file(_options->getOutputFile());
 //	for (auto it = _con_hashtable.begin(); it != _con_hashtable.end(); ++it) {
@@ -144,7 +215,32 @@ void KMerCounter::DumpResults() {
 //	}
 //	output_file.close();
 
-	_countingHashTable->Dump();
+	//_countingHashTable->Dump();
+
+	if (_temp_file_id > 0) {
+		string filename = _options->getTempFileLocation() + "/" + to_string(_temp_file_id++);
+
+		list<std::pair<char*, uint64_t>> temp_sorted_data;
+		temp_sorted_data.splice(temp_sorted_data.begin(), _sorted_data);
+		_sorted_kmer_merger->Merge(temp_sorted_data, filename);
+
+		_sorted_data_size = 0;
+
+		// TODO : MERGE FILES ============
+		SortedKmerFileMerger* s = new SortedKmerFileMerger("/tmp/1/out.bin");
+		list<string> files;
+		for (uint32_t i = 0; i < _temp_file_id; i++) {
+			files.push_back("/tmp/1/" + to_string(i));
+		}
+		s->Merge(files, _options->GetKmerLength());
+
+	} else {
+		string filename = _options->getTempFileLocation() + "/out.bin";
+
+		list<std::pair<char*, uint64_t>> temp_sorted_data;
+		temp_sorted_data.splice(temp_sorted_data.begin(), _sorted_data);
+		_sorted_kmer_merger->Merge(temp_sorted_data, filename);
+	}
 }
 
 void KMerCounter::Start() {
@@ -183,6 +279,7 @@ void KMerCounter::Start() {
 		fastqData = inputFileHandler->read(chunkSize);
 	}
 
+	printf("======================================Input completed\n");
 	_input_complete = true;
 
 	for (std::list<thread>::iterator it=_workerThreads.begin(); it != _workerThreads.end(); ++it) {

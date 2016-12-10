@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <fstream>
 //#include <stdexcept>
+#include <mutex>
 #include <inttypes.h>
 #include "KmerKeyValue.h"
 
@@ -35,6 +36,9 @@
 //constexpr uint32_t key_size() {
 //	return sizeof(KeyType) / sizeof(uint64_t);
 //}
+
+template<uint32_t key_size>
+extern char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint64_t* output_count, uint64_t kmer_db_max_record_count, uint64_t& size);
 
 template<uint32_t key_size>
 extern void InsertToHashTable(KmerKeyValue<key_size>* input, uint32_t no_of_keys_per_stream, cudaStream_t stream,
@@ -66,6 +70,15 @@ private:
 	uint64_t* _d_cuda_counters;
 	uint64_t _cuda_counters_per_stream;
 
+	char* _d_data_shrink_buffer;
+	uint64_t* _d_shrinked_key_count;
+	uint64_t* _h_shrinked_key_count;
+
+	std::recursive_mutex _rec_mtx;
+	uint64_t _temp_count = 0;
+
+	bool _is_full;
+
 public:
 	CountingHashTableBase(const uint32_t device_id, const uint32_t no_of_streams, const uint32_t kmer_db_size, const uint32_t kmer_failed_db_size) :
 			_device_id(device_id), _d_data_buffer(NULL), _d_kmer_db(NULL), _kmer_db_size(kmer_db_size), _no_of_streams(no_of_streams), _kmer_db_record_count(
@@ -85,10 +98,14 @@ public:
 
 		// allocating memory for _kmer_db
 		CUDA_CHECK_RETURN(cudaMalloc((void ** ) &_d_data_buffer, _kmer_db_size));
+		CUDA_CHECK_RETURN(cudaMalloc((void ** ) &_d_data_shrink_buffer, _kmer_db_size));
 		CUDA_CHECK_RETURN(cudaMalloc((void ** ) &_d_failed_data_buffer, _failed_kmer_size));
 
 		_h_cuda_counters = new uint64_t[_cuda_counters_per_stream * _no_of_streams];
 		CUDA_CHECK_RETURN(cudaMalloc((void ** ) &_d_cuda_counters, _cuda_counters_per_stream * _no_of_streams * sizeof(uint64_t)));
+
+		_h_shrinked_key_count = new uint64_t[1];
+		CUDA_CHECK_RETURN(cudaMalloc((void ** ) &_d_shrinked_key_count, 1 * sizeof(uint64_t)));
 
 		_d_kmer_db = (KmerKeyValue<key_size>*)_d_data_buffer;
 		_d_failed_kmer_entires = (KmerKeyValue<key_size>*)_d_failed_data_buffer;
@@ -105,6 +122,12 @@ public:
 		_kmer_db_max_record_count = _kmer_db_size / sizeof(KmerKeyValue<key_size> );
 		_failed_kmer_max_entry_count = _failed_kmer_size / sizeof(KmerKeyValue<key_size>);
 
+		CUDA_CHECK_RETURN(cudaMemset(_d_data_buffer, 0, _kmer_db_size));
+		CUDA_CHECK_RETURN(cudaMemset(_d_data_shrink_buffer, 0, _kmer_db_size));
+		CUDA_CHECK_RETURN(cudaMemset(_d_failed_data_buffer, 0, _failed_kmer_size));
+		CUDA_CHECK_RETURN(cudaMemset(_d_cuda_counters, 0, _cuda_counters_per_stream * _no_of_streams * sizeof(uint64_t)));
+		CUDA_CHECK_RETURN(cudaMemset(_d_shrinked_key_count, 0, 1 * sizeof(uint64_t)));
+
 		Init();
 	}
 
@@ -114,7 +137,11 @@ public:
 
 		// free allocated memory
 		CUDA_CHECK_RETURN(cudaFree(_d_data_buffer));
+		CUDA_CHECK_RETURN(cudaFree(_d_data_shrink_buffer));
 		CUDA_CHECK_RETURN(cudaFree(_d_failed_data_buffer));
+
+		CUDA_CHECK_RETURN(cudaFree(_d_cuda_counters));
+		CUDA_CHECK_RETURN(cudaFree(_d_shrinked_key_count));
 
 		// destroy streams
 		for (uint32_t i = 0; i < _no_of_streams; i++) {
@@ -132,8 +159,10 @@ public:
 
 		// reset allocated memory
 		CUDA_CHECK_RETURN(cudaMemset(_d_data_buffer, 0, _kmer_db_size));
+		CUDA_CHECK_RETURN(cudaMemset(_d_data_shrink_buffer, 0, _kmer_db_size));
 //		CUDA_CHECK_RETURN(cudaMemset(_d_failed_data_buffer, 0, _failed_kmer_size));
 		CUDA_CHECK_RETURN(cudaMemset(_d_cuda_counters, 0, _cuda_counters_per_stream * _no_of_streams * sizeof(uint64_t)));
+		CUDA_CHECK_RETURN(cudaMemset(_d_shrinked_key_count, 0, 1 * sizeof(uint64_t)));
 
 		UpdateCounters();
 		if (_failed_kmer_entries_count > 0) {
@@ -143,18 +172,42 @@ public:
 
 		_kmer_db_record_count = 0;
 		_failed_kmer_entries_count = 0;
+
+		_rec_mtx.lock();
+		_temp_count = 0;
+		_rec_mtx.unlock();
+
+		_is_full = false;
 	}
 
 	bool Insert(KmerKeyValue<key_size>* d_input, const uint64_t no_of_keys) {
 		// set device id
 		CUDA_CHECK_RETURN(cudaSetDevice(_device_id));
 
+//		printf("=================inserting, no_of_keys=%" PRIu64 ",_kmer_db_max_record_count=%" PRIu64 ", _temp_count=%" PRIu64 "\n",
+//				no_of_keys, _kmer_db_max_record_count, _temp_count);
+
 		// TODO : find the proper ratio for this
-		if (no_of_keys * 1.25 > _kmer_db_max_record_count - _kmer_db_record_count
-				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count > no_of_keys / 2) {
+//		if (no_of_keys * 1.25 > _kmer_db_max_record_count - _kmer_db_record_count
+//				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count < no_of_keys / 2) {
+		_rec_mtx.lock();
+
+//		printf("=================inserting, no_of_keys=%" PRIu64 ",_kmer_db_max_record_count=%" PRIu64 ", _temp_count=%" PRIu64 "\n",
+//						no_of_keys, _kmer_db_max_record_count, _temp_count);
+
+		if (no_of_keys * 1.25 > _kmer_db_max_record_count - _temp_count
+				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count < no_of_keys / 2) {
 			// there is a possibility that all keys would not get inserted.
+
+//			printf("=================failed to insert %i, %i, max=%" PRIu64 ", count=%" PRIu64 "\n", (no_of_keys * 1.25 > _kmer_db_max_record_count - _kmer_db_record_count),
+//					(_failed_kmer_max_entry_count - _failed_kmer_entries_count < no_of_keys / 2), _kmer_db_max_record_count, _kmer_db_record_count);
+
+			_rec_mtx.unlock();
+			_is_full = true;
 			return false;
 		}
+		_temp_count += no_of_keys;
+		_rec_mtx.unlock();
 
 		uint32_t no_of_keys_per_stream = (no_of_keys + _no_of_streams - 1) / _no_of_streams;
 		for (uint32_t i = 0; i < _no_of_streams; i++) {
@@ -163,7 +216,22 @@ public:
 
 		UpdateCounters();
 
+		printf("=================insert completed\n");
+
 		return true;
+	}
+
+	bool isFull() {
+		return _is_full;
+	}
+
+	char* GetCreateSortedHostData(uint64_t& size) {
+		char* data = CreateSortedHostData(_d_kmer_db, _d_data_shrink_buffer, _d_shrinked_key_count, _kmer_db_max_record_count, size);
+
+		// As the last step clear all data and prepare for the next iteration.
+		Init();
+
+		return data;
 	}
 
 	void Extract(std::vector<KmerKeyValue<key_size> >& kmer_entries) const {

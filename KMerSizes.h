@@ -9,7 +9,7 @@
 
 struct KMer32 {
 	uint64_t kmer[1];
-	uint32_t count;
+	uint64_t count;
 };
 
 struct KMer64 {

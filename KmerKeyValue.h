@@ -29,6 +29,10 @@ public:
 		return _count;
 	}
 
+	__device__ __host__ uint64_t setCount(uint64_t count) {
+			_count = count;
+	}
+
 	__device__ __host__ const KmerKey<key_size>& getKey() const {
 		return _key;
 	}
