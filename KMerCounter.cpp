@@ -227,15 +227,15 @@ void KMerCounter::DumpResults() {
 		_sorted_data_size = 0;
 
 		// TODO : MERGE FILES ============
-		SortedKmerFileMerger* s = new SortedKmerFileMerger("/tmp/1/out.bin");
+		SortedKmerFileMerger* s = new SortedKmerFileMerger(_options->getOutputFile());
 		list<string> files;
 		for (uint32_t i = 0; i < _temp_file_id; i++) {
-			files.push_back("/tmp/1/" + to_string(i));
+			files.push_back(_options->getTempFileLocation() + "/" + to_string(i));
 		}
 		s->Merge(files, _options->GetKmerLength());
 
 	} else {
-		string filename = _options->getTempFileLocation() + "/out.bin";
+		string filename = _options->getOutputFile();
 
 		list<std::pair<char*, uint64_t>> temp_sorted_data;
 		temp_sorted_data.splice(temp_sorted_data.begin(), _sorted_data);
