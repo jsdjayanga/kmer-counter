@@ -36,7 +36,7 @@ KMerCounter::KMerCounter(Options* options) {
 		kmerStoreSize++;
 	}
 	kmerStoreSize *= 8;
-	kmerStoreSize += 4;
+	kmerStoreSize += 8;
 
 	__kmer_record_size = kmerStoreSize;
 
@@ -54,7 +54,7 @@ KMerCounter::KMerCounter(Options* options) {
 
 	_temp_file_id = 0;
 
-	_sorted_kmer_merger = new SortedKmerMerger();
+	_sorted_kmer_merger = new SortedKmerMerger(options->GetKmerLength());
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -99,7 +99,7 @@ void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64
 
 
 	bool capable = false;
-	const uint64_t no_of_records = outputSize / 16;
+	const uint64_t no_of_records = outputSize / __kmer_record_size;
 	capable = _countingHashTable->Insert((KmerKeyValue<1>*) gpuStream->_d_output, no_of_records);
 	while (!capable) {
 		//printf("======================================waiting for hash table to ready\n");

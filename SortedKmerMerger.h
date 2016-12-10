@@ -32,12 +32,14 @@ struct SortedKmerArray {
 
 class SortedKmerMerger {
 public:
-    SortedKmerMerger();
+    SortedKmerMerger(uint32_t kmer_length);
     SortedKmerMerger(const SortedKmerMerger& orig);
     virtual ~SortedKmerMerger();
     void Merge(std::list<std::pair<char*, uint64_t> > kmer_list, std::string filename);
 private:
     char* GetLowest(std::list<SortedKmerArray*>& sorted_kmer_arrays);
+    uint32_t _kmer_store_size;
+    uint32_t _kmer_length;
 };
 
 #endif /* SORTEDKMERMERGER_H */

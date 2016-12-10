@@ -13,12 +13,21 @@
 
 #include <fstream>
 #include <iostream>
+#include "KMerCounterUtils.h"
 
 #include "SortedKmerMerger.h"
 
 using namespace std;
 
-SortedKmerMerger::SortedKmerMerger() {
+SortedKmerMerger::SortedKmerMerger(uint32_t kmer_length) {
+	_kmer_length = kmer_length;
+
+	_kmer_store_size = _kmer_length / 32;
+	if (_kmer_length % 32 > 0) {
+		_kmer_store_size++;
+	}
+	_kmer_store_size *= 8;
+	_kmer_store_size += 8;
 }
 
 SortedKmerMerger::SortedKmerMerger(const SortedKmerMerger& orig) {
@@ -37,8 +46,8 @@ void SortedKmerMerger::Merge(std::list<std::pair<char*, uint64_t> > kmer_list, s
     ofstream output_file(filename.c_str());
     char* data = GetLowest(sorted_kmer_arrays);
     while (data != NULL) {
-        output_file.write(data, sizeof(uint64_t));
-        uint32_t count = (uint32_t)*(uint64_t*)(data + sizeof(uint64_t));
+        output_file.write(data, _kmer_store_size - sizeof(uint64_t));
+        uint32_t count = (uint32_t)*(uint64_t*)(data + _kmer_store_size - sizeof(uint64_t));
         output_file.write((char*)&count, sizeof(uint32_t));
         
 //        cout << "F" << ":" << *(uint64_t*)data << "|" << count << endl;
@@ -67,13 +76,14 @@ char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_array
 //        cout << *(uint64_t*)(lowest->_data + lowest->_index) << "|" << *(uint64_t*)(lowest->_data + lowest->_index + 8)
 //                << "|" << *(uint64_t*)(current->_data + current->_index) << endl;
         
-        if (*(uint64_t*) (current->_data + current->_index) < *(uint64_t*) (lowest->_data + lowest->_index)) {
+        if (lessThan(current->_data + current->_index, lowest->_data + lowest->_index, _kmer_length)) {
             lowest = current;
             lowest_ite = ite;
-        } else if (*(uint64_t*) (current->_data + current->_index) == *(uint64_t*) (lowest->_data + lowest->_index)) {
-            *(uint64_t*) (lowest->_data + lowest->_index + sizeof (uint64_t)) = *(uint64_t*) (lowest->_data + lowest->_index + sizeof (uint64_t)) +
-                    *(uint64_t*) (current->_data + current->_index + sizeof (uint64_t));
-            current->_index += 2 * sizeof (uint64_t);
+        } else if (equals(current->_data + current->_index, lowest->_data + lowest->_index, _kmer_length)) {
+            *(uint64_t*) (lowest->_data + lowest->_index + _kmer_store_size - sizeof(uint64_t)) =
+            		*(uint64_t*) (lowest->_data + lowest->_index + _kmer_store_size - sizeof(uint64_t)) +
+                    *(uint64_t*) (current->_data + current->_index + _kmer_store_size - sizeof(uint64_t));
+            current->_index += _kmer_store_size;
             if (current->_index >= current->_length) {
                 list<SortedKmerArray*>::iterator ite_to_delete = ite;
                 ite++;
@@ -85,7 +95,7 @@ char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_array
     }
 
     uint64_t lowest_index = lowest->_index;
-    lowest->_index += 2 * sizeof (uint64_t);
+    lowest->_index += _kmer_store_size;
     if (lowest->_index >= lowest->_length) {
         sorted_kmer_arrays.erase(lowest_ite);
     }

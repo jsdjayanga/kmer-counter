@@ -340,7 +340,7 @@ bool CheckEquals(char* lhs, char* rhs, uint64_t kmerStoreLength) {
 uint64_t reduceKMers(char* h_output, uint64_t kmerLength, uint64_t outputSize) {
 	uint64_t kmerStoreSize = (kmerLength + 31) / 32;
 	kmerStoreSize *= 8;
-	kmerStoreSize += 4;
+	kmerStoreSize += 8;
 
 	uint64_t index = 0;
 
