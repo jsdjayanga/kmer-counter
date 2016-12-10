@@ -12,6 +12,7 @@
  */
 
 #include <iostream>
+#include <cstring>
 #include "SortedKmerFileMerger.h"
 #include "SortedKmerFile.h"
 
@@ -19,6 +20,10 @@ using namespace std;
 
 SortedKmerFileMerger::SortedKmerFileMerger(string output_filename) {
     _output_filename = output_filename;
+    
+    _buffer_index = 0;
+    _buffer_size = (uint64_t)1 * 1024 * 1024 * 1024;
+    _buffer = new char[_buffer_size];
 }
 
 SortedKmerFileMerger::SortedKmerFileMerger(const SortedKmerFileMerger& orig) {
@@ -37,12 +42,24 @@ void SortedKmerFileMerger::Merge(list<string> files, uint32_t kmer_length) {
         }
     }
     
+    uint32_t kmer_store_size = sizeof(uint64_t) + sizeof(uint32_t);
     ofstream output_file(_output_filename.c_str());
     SortedKmerFile* lowest = GetLowest(sorted_kmer_files);
     while (lowest != NULL) {
-        output_file.write(lowest->Peek(), sizeof(uint64_t));
+        
+        if (_buffer_index + kmer_store_size > _buffer_size) {
+            output_file.write(_buffer, _buffer_index);
+            _buffer_index = 0;
+        }
+        
+        memcpy(_buffer + _buffer_index, lowest->Peek(), sizeof(uint64_t));
         uint32_t count = (uint32_t)*(uint64_t*)(lowest->Peek() + sizeof(uint64_t));
-        output_file.write((char*)&count, sizeof(uint32_t));        
+        memcpy(_buffer + _buffer_index + sizeof(uint64_t), (char*)&count, sizeof(uint32_t));
+        _buffer_index += kmer_store_size;
+        
+//        output_file.write(lowest->Peek(), sizeof(uint64_t));
+//        uint32_t count = (uint32_t)*(uint64_t*)(lowest->Peek() + sizeof(uint64_t));
+//        output_file.write((char*)&count, sizeof(uint32_t));        
         
 //        cout << *(uint64_t*)lowest->Peek() << " " << count << endl;
         
@@ -50,6 +67,12 @@ void SortedKmerFileMerger::Merge(list<string> files, uint32_t kmer_length) {
          
         lowest = GetLowest(sorted_kmer_files);
     }
+    
+    if (_buffer_index + kmer_store_size > _buffer_size) {
+        output_file.write(_buffer, _buffer_index);
+        _buffer_index = 0;
+    }
+    
     output_file.close();
 }
 

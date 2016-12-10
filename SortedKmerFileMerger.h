@@ -28,6 +28,9 @@ public:
 private:
     SortedKmerFile* GetLowest(std::list<SortedKmerFile*>& sorted_kmer_files);
     std::string _output_filename;
+    char* _buffer;
+    uint64_t _buffer_index;
+    uint64_t _buffer_size;
 };
 
 #endif /* SORTEDKMERFILEMERGER_H */

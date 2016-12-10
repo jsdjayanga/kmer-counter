@@ -58,11 +58,11 @@ void SortedKmerFile::Read() {
 char* SortedKmerFile::Peek() {
 //    cout << "=========Peek, " << this->_buffer_index << "|" << this->_buffer_valid_index << "|" << this->_buffer_size  << endl;
     
-    if (this->_buffer_index < this->_buffer_valid_index) {
+    if (this->_buffer_index + this->_kmerStoreLength < this->_buffer_valid_index) {
         return _buffer + this->_buffer_index;
     } else {
         Read();
-        if (this->_buffer_index < this->_buffer_valid_index) {
+        if (this->_buffer_index + this->_kmerStoreLength < this->_buffer_valid_index) {
             return _buffer + this->_buffer_index;
         } else {
             return NULL;
