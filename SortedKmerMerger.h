@@ -40,6 +40,7 @@ private:
     char* GetLowest(std::list<SortedKmerArray*>& sorted_kmer_arrays);
     uint32_t _kmer_store_size;
     uint32_t _kmer_length;
+    uint32_t _key_size_in_longs;
 };
 
 #endif /* SORTEDKMERMERGER_H */

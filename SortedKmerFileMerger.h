@@ -21,7 +21,7 @@
 
 class SortedKmerFileMerger {
 public:
-    SortedKmerFileMerger(std::string output_filename);
+    SortedKmerFileMerger(std::string output_filename, uint32_t kmer_length);
     SortedKmerFileMerger(const SortedKmerFileMerger& orig);
     virtual ~SortedKmerFileMerger();
     void Merge(std::list<std::string> files, uint32_t kmer_length);
@@ -31,6 +31,7 @@ private:
     char* _buffer;
     uint64_t _buffer_index;
     uint64_t _buffer_size;
+    uint32_t _key_size_in_longs;
 };
 
 #endif /* SORTEDKMERFILEMERGER_H */

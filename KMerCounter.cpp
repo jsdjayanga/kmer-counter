@@ -31,11 +31,11 @@ KMerCounter::KMerCounter(Options* options) {
 	_streamCount = 8;
 
 	uint64_t kmerLength = options->GetKmerLength();
-	uint64_t kmerStoreSize = kmerLength / 32;
+	_key_size_in_longs = kmerLength / 32;
 	if (kmerLength % 32 > 0) {
-		kmerStoreSize++;
+		_key_size_in_longs++;
 	}
-	kmerStoreSize *= 8;
+	uint64_t kmerStoreSize = _key_size_in_longs * 8;
 	kmerStoreSize += 8;
 
 	__kmer_record_size = kmerStoreSize;
@@ -227,7 +227,7 @@ void KMerCounter::DumpResults() {
 		_sorted_data_size = 0;
 
 		// TODO : MERGE FILES ============
-		SortedKmerFileMerger* s = new SortedKmerFileMerger(_options->getOutputFile());
+		SortedKmerFileMerger* s = new SortedKmerFileMerger(_options->getOutputFile(), _key_size_in_longs);
 		list<string> files;
 		for (uint32_t i = 0; i < _temp_file_id; i++) {
 			files.push_back(_options->getTempFileLocation() + "/" + to_string(i));

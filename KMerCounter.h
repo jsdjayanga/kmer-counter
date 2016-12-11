@@ -85,6 +85,7 @@ private:
     uint32_t _streamCount;
     GPUStream** _gpuStreams;
     bool _input_complete;
+    uint32_t _key_size_in_longs;
     
     int64_t GetChunkSize(int64_t lineLength, int64_t kmerLength, int64_t gpuMemoryLimit);
     void dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId);

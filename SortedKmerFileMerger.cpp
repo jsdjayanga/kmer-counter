@@ -19,12 +19,17 @@
 
 using namespace std;
 
-SortedKmerFileMerger::SortedKmerFileMerger(string output_filename) {
+SortedKmerFileMerger::SortedKmerFileMerger(string output_filename, uint32_t kmer_length) {
     _output_filename = output_filename;
     
     _buffer_index = 0;
     _buffer_size = (uint64_t)1 * 1024 * 1024 * 1024;
     _buffer = new char[_buffer_size];
+
+    _key_size_in_longs = kmer_length / 32;
+	if (kmer_length % 32 > 0) {
+		_key_size_in_longs++;
+	}
 }
 
 SortedKmerFileMerger::SortedKmerFileMerger(const SortedKmerFileMerger& orig) {
@@ -111,10 +116,10 @@ SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sort
 //        cout << *(uint64_t*)(lowest->_data + lowest->_index) << "|" << *(uint64_t*)(lowest->_data + lowest->_index + 8)
 //                << "|" << *(uint64_t*)(current->_data + current->_index) << endl;
         
-        if (lessThan(current->Peek(), lowest->Peek(), kmer_length)) {
+        if (lessThan(current->Peek(), lowest->Peek(), _key_size_in_longs)) {
             lowest = current;
             lowest_ite = ite;
-        } else if (equals(current->Peek(), lowest->Peek(), kmer_length)) {
+        } else if (equals(current->Peek(), lowest->Peek(), _key_size_in_longs)) {
             lowest->UpdatePeek(*(uint32_t*)(current->Peek() + kmer_store_size - sizeof(uint32_t)));
             current->Pop();
 //            *(uint64_t*) (lowest->_data + lowest->_index + sizeof (uint64_t)) = *(uint64_t*) (lowest->_data + lowest->_index + sizeof (uint64_t)) +

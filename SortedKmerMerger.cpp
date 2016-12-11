@@ -22,11 +22,11 @@ using namespace std;
 SortedKmerMerger::SortedKmerMerger(uint32_t kmer_length) {
 	_kmer_length = kmer_length;
 
-	_kmer_store_size = _kmer_length / 32;
+	_key_size_in_longs = _kmer_length / 32;
 	if (_kmer_length % 32 > 0) {
-		_kmer_store_size++;
+		_key_size_in_longs++;
 	}
-	_kmer_store_size *= 8;
+	_kmer_store_size = _key_size_in_longs * 8;
 	_kmer_store_size += 8;
 }
 
@@ -76,10 +76,10 @@ char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_array
 //        cout << *(uint64_t*)(lowest->_data + lowest->_index) << "|" << *(uint64_t*)(lowest->_data + lowest->_index + 8)
 //                << "|" << *(uint64_t*)(current->_data + current->_index) << endl;
         
-        if (lessThan(current->_data + current->_index, lowest->_data + lowest->_index, _kmer_length)) {
+        if (lessThan(current->_data + current->_index, lowest->_data + lowest->_index, _key_size_in_longs)) {
             lowest = current;
             lowest_ite = ite;
-        } else if (equals(current->_data + current->_index, lowest->_data + lowest->_index, _kmer_length)) {
+        } else if (equals(current->_data + current->_index, lowest->_data + lowest->_index, _key_size_in_longs)) {
             *(uint64_t*) (lowest->_data + lowest->_index + _kmer_store_size - sizeof(uint64_t)) =
             		*(uint64_t*) (lowest->_data + lowest->_index + _kmer_store_size - sizeof(uint64_t)) +
                     *(uint64_t*) (current->_data + current->_index + _kmer_store_size - sizeof(uint64_t));
