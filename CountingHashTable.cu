@@ -32,7 +32,8 @@ __global__ void StartInsertionKernel(KmerKeyValue<key_size>* d_input, uint32_t n
 	bool success = false;
 	for(uint32_t trial = 0; trial < MAX_TRIALS && !success; trial++) {
 
-		if (key_value->getKey().isAllA()) {
+		const KmerKey<key_size>& key = key_value->getKey();
+		if (key.isAllA()) {
 //			printf("=========================ALL AAAAAAAAAAAAA input_count:%"PRIu64", countbeforeadd=%"PRIu64"\n",
 //					d_input[thread_id].getCount(), kmer_db[kmer_db_max_record_count - 1].getCount());
 			atomicAdd((unsigned long long int*)(((char*)&kmer_db[kmer_db_max_record_count - 1]) + sizeof(KmerKey<key_size>)), (unsigned long long int)d_input[thread_id].getCount());
@@ -55,8 +56,8 @@ __global__ void StartInsertionKernel(KmerKeyValue<key_size>* d_input, uint32_t n
 		if (oldValue == 0) {
 			// a new entry
 			success = true;
-			for (uint32_t index = sizeof(uint64_t); index < sizeof(KmerKey<key_size>); index += sizeof(uint64_t)) {
-				*(((uint64_t*)&kmer_db[location]) + index) = *((uint64_t*)&d_input[thread_id].getKey() + index);
+			for (uint32_t index = sizeof(uint64_t); index < sizeof(KmerKey<key_size>); index++) {
+				*(((char*)&kmer_db[location]) + index) = *((char*)&d_input[thread_id].getKey() + index);
 			}
 
 			atomicAdd((unsigned long long int*)(((char*)&kmer_db[location]) + sizeof(KmerKey<key_size>)), (unsigned long long int)d_input[thread_id].getCount());
@@ -316,7 +317,7 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 template<uint32_t key_size>
 void InsertToHashTable(KmerKeyValue<key_size>* d_input, uint32_t no_of_keys_per_stream, cudaStream_t stream,
 		KmerKeyValue<key_size>* kmer_db, uint64_t kmer_db_max_record_count, uint64_t* cuda_counters) {
-	printf("Initiating insertion kernel for stream : %"PRIu64"\n", (uint64_t) stream);
+	printf("Initiating insertion kernel for stream : %"PRIu64", key-size=%i\n", (uint64_t) stream, key_size);
 
 
 	const uint32_t threads_per_block = 512;
