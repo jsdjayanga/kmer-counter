@@ -125,7 +125,7 @@ __global__ void ShrinkAndPackHashTable(KmerKeyValue<key_size>* d_input, char* d_
 	uint64_t thread_id = (blockIdx.x * blockDim.x + threadIdx.x);
 
 	uint64_t index = thread_id * keys_per_thread;
-	if (index + keys_per_thread > kmer_db_max_record_count) {
+	if (index > kmer_db_max_record_count) {
 		return;
 	}
 
@@ -138,11 +138,12 @@ __global__ void ShrinkAndPackHashTable(KmerKeyValue<key_size>* d_input, char* d_
 //		printf("=================calling from thread id 0\n");
 //	}
 
-//	if (index + keys_per_thread >= kmer_db_max_record_count) {
+	if (index + keys_per_thread > kmer_db_max_record_count) {
+		keys_per_thread = (kmer_db_max_record_count % keys_per_thread) + 1;
+
 //		printf("=================The max thread reach here thread_id=%" PRIu64 ", index=%" PRIu64 ", kmer_db_max_record_count=%" PRIu64 ", keys_per_thread=%" PRIu64 "\n",
-//				thread_id, index, kmer_db_max_record_count, keys_per_thread);
-//		keys_per_thread = kmer_db_max_record_count % keys_per_thread;
-//	}
+//						thread_id, index, kmer_db_max_record_count, keys_per_thread);
+	}
 
 //	printf("=================================CreateSortedHostData=%" PRIu64 ", keys_per_thread=%" PRIu64 "\n", index, keys_per_thread);
 
@@ -152,17 +153,26 @@ __global__ void ShrinkAndPackHashTable(KmerKeyValue<key_size>* d_input, char* d_
 //	printf("=================================CreateSortedHostData index=%" PRIu64 ",l=%" PRIu32 ", r=%" PRIu32 ", lv=%" PRIu64 ", rv=%" PRIu64 "\n",
 //			index, l, r, *(uint64_t*)&d_input[index + l], *(uint64_t*)&d_input[index + r]);
 	//&& ((index + l) <= kmer_db_max_record_count) && ((index + r) <= kmer_db_max_record_count)
-	while(l < r) {
-		memcpy(&d_input[index + l], &d_input[index + r], sizeof(KmerKeyValue<key_size>));
-		memset(&d_input[index + r], 0, sizeof(KmerKeyValue<key_size>));
-		l = firstFreePosition(d_input + index, keys_per_thread, l + 1);
-		r = lastOccupiedPosition(d_input + index, keys_per_thread, r - 1);
+	uint64_t count = 0;
+	if (l > r) {
+		count++;
+	} else {
+		while(l < r) {
+			count++;
+			memcpy(&d_input[index + l], &d_input[index + r], sizeof(KmerKeyValue<key_size>));
+			memset(&d_input[index + r], 0, sizeof(KmerKeyValue<key_size>));
+			l = firstFreePosition(d_input + index, keys_per_thread, l + 1);
+			r = lastOccupiedPosition(d_input + index, keys_per_thread, r - 1);
+		}
 	}
 
 //	printf("=================last valid index = %" PRIu64 "\n", l);
 
-	uint64_t oldValue = atomicAdd((unsigned long long int*)output_count, (unsigned long long int)l);
-	memcpy(d_output + oldValue * sizeof(KmerKeyValue<key_size>), (char*)(d_input + index), sizeof(KmerKeyValue<key_size>) * l);
+	if (count > 0) {
+//		printf("=================Count = %" PRIu64 ", index=%" PRIu64 "\n", count, index);
+		uint64_t oldValue = atomicAdd((unsigned long long int*)output_count, (unsigned long long int)count);
+		memcpy(d_output + oldValue * sizeof(KmerKeyValue<key_size>), (char*)(d_input + index), sizeof(KmerKeyValue<key_size>) * count);
+	}
 
 	__syncthreads();
 //	printf("=================last valid index = %" PRIu64 ", oldValue=%" PRIu64 "\n", l, oldValue);
@@ -172,8 +182,38 @@ class KMer32Comparator1 {
 public:
 	__device__ __host__
 	bool operator()(const KMer32 &c1, const KMer32 &c2) {
-		//printf("=================================KMer32Comparator1 l=%" PRIu64 ", r=%" PRIu64 "\n", c1.kmer[0], c2.kmer[0]);
+//		printf("=================================KMer32Comparator1 l=%" PRIu64 ", r=%" PRIu64 "\n", c1.kmer[0], c2.kmer[0]);
 		return c1.kmer[0] < c2.kmer[0];
+	}
+};
+
+class KMer64Comparator1 {
+public:
+	__device__ __host__
+	bool operator()(const KMer64 &c1, const KMer64 &c2) {
+//		printf("=================================KMer64Comparator1 l=%" PRIu64 ", r=%" PRIu64 "\n", c1.kmer[0], c2.kmer[0]);
+		for (uint32_t i = 0; i < 2; i++) {
+			if (c1.kmer[i] < c2.kmer[i])
+				return true;
+			else if (c1.kmer[i] > c2.kmer[i])
+				return false;
+		}
+		return false;
+	}
+};
+
+class KMer96Comparator1 {
+public:
+	__device__ __host__
+	bool operator()(const KMer96 &c1, const KMer96 &c2) {
+//		printf("=================================KMer96Comparator1 l=%" PRIu64 ", r=%" PRIu64 "\n", c1.kmer[0], c2.kmer[0]);
+		for (uint32_t i = 0; i < 3; i++) {
+			if (c1.kmer[i] < c2.kmer[i])
+				return true;
+			else if (c1.kmer[i] > c2.kmer[i])
+				return false;
+		}
+		return false;
 	}
 };
 
@@ -197,24 +237,25 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 
 	//=================================================
 ////	printf("+++++++++++++++++++++++++++++++++++++++++++Before Shrink\n");
-//	char* temp1 = new char[kmer_db_max_record_count * 16];
-////	CUDA_CHECK_RETURN(cudaMemcpy(temp1, d_input, kmer_db_max_record_count * 16, cudaMemcpyDeviceToHost));
-//	//CUDA_CHECK_RETURN(cudaDeviceSynchronize());
-//	for (uint64_t i = 0; i < kmer_db_max_record_count * 16; i += 16) {
-////		if (*(uint64_t*)(temp1 + i + 8) > 0) {
-////			printf("%" PRIu64 " %" PRIu64 "\n", *(uint64_t*)(temp1 + i), *(uint64_t*)(temp1 + i + 8));
-////		}
-//		uint64_t v = 1;
-//		memcpy(temp1 + i, &i, 8);
-//		memcpy(temp1 + i + 8, &v, 8);
+//	char* temp1 = new char[kmer_db_max_record_count * sizeof(KmerKeyValue<key_size>)];
+//	CUDA_CHECK_RETURN(cudaMemcpy(temp1, d_input, kmer_db_max_record_count * sizeof(KmerKeyValue<key_size>), cudaMemcpyDeviceToHost));
+//	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+//	for (uint64_t i = 0; i < kmer_db_max_record_count * sizeof(KmerKeyValue<key_size>); i += sizeof(KmerKeyValue<key_size>)) {
+//		if (*(uint64_t*)(temp1 + i + sizeof(KmerKeyValue<key_size>) - sizeof(uint64_t)) > 0) {
+//			printf("index=%" PRIu64 ", val=%" PRIu64 ", count=%" PRIu64 "\n", i, *(uint64_t*)(temp1 + i), *(uint64_t*)(temp1 + i + sizeof(KmerKeyValue<key_size>) - sizeof(uint64_t)));
+//		}
+////		uint64_t v = 1;
+////		memcpy(temp1 + i, &i, 8);
+////		memcpy(temp1 + i + 8, &v, 8);
 //	}
 //	CUDA_CHECK_RETURN(cudaMemcpy(d_input, temp1, kmer_db_max_record_count * 16, cudaMemcpyHostToDevice));
 //	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 	//=================================================
 
-	uint32_t threads_per_block = 512;
-	uint32_t block_count = 2048;
-	uint32_t keys_per_thread = (((kmer_db_max_record_count + block_count - 1) / block_count) + threads_per_block - 1) / threads_per_block;
+	uint32_t threads_per_block = 512;// 512;
+	uint32_t block_count = 1024;// 2048;
+	uint32_t keys_per_thread = kmer_db_max_record_count / (threads_per_block * block_count) + 1;
+			// (((kmer_db_max_record_count + block_count - 1) / block_count) + threads_per_block - 1) / threads_per_block;
 
 
 	//= (((kmer_db_max_record_count + threads_per_block - 1) / threads_per_block) + block_count - 1) / block_count;
@@ -246,13 +287,27 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 	uint64_t count = 0;
 	CUDA_CHECK_RETURN(cudaMemcpy(&count, (char*)output_count, sizeof(uint64_t), cudaMemcpyDeviceToHost));
 
-	printf("=================================CreateSortedHostData packed record count=%" PRIu64 ", size KMer32%" PRIu64 "\n", count, sizeof(KMer32));
+	printf("=================================CreateSortedHostData packed record count=%" PRIu64 ", size KMer32=%" PRIu64 ", key-size=%i\n",
+			count, sizeof(KMer64), key_size);
 
-	thrust::sort(thrust::cuda::par, (KMer32*)d_output, ((KMer32*)(d_output)) + count, KMer32Comparator1());
+	if (key_size == 1) {
+		thrust::sort(thrust::cuda::par, (KMer32*)d_output, ((KMer32*)(d_output)) + count, KMer32Comparator1());
+	} else if (key_size == 2) {
+		thrust::sort(thrust::cuda::par, (KMer64*)d_output, ((KMer64*)(d_output)) + count, KMer64Comparator1());
+	} else if (key_size == 3) {
+		thrust::sort(thrust::cuda::par, (KMer96*)d_output, ((KMer96*)(d_output)) + count, KMer96Comparator1());
+	}
+
 	CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
 	char* data = new char[count * sizeof(KmerKeyValue<key_size>)];
 	CUDA_CHECK_RETURN(cudaMemcpy(data, d_output, count * sizeof(KmerKeyValue<key_size>), cudaMemcpyDeviceToHost));
+
+//	for (uint64_t i = 0; i < kmer_db_max_record_count * sizeof(KmerKeyValue<key_size>); i += sizeof(KmerKeyValue<key_size>)) {
+//		if (*(uint64_t*)(data + i + sizeof(KmerKeyValue<key_size>) - sizeof(uint64_t)) > 0) {
+//			printf("index=%" PRIu64 ", val=%" PRIu64 ", count=%" PRIu64 "\n", i, *(uint64_t*)(data + i), *(uint64_t*)(data + i + sizeof(KmerKeyValue<key_size>) - sizeof(uint64_t)));
+//		}
+//	}
 
 	size = count * sizeof(KmerKeyValue<key_size>);
 	return data;

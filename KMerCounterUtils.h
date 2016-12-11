@@ -16,14 +16,14 @@
 
 
 inline bool lessThan(char* first, char* second, uint32_t kmer_length) {
-	if (kmer_length == 32) {
+	if (kmer_length <= 32) {
 		return *(uint64_t*) (first) < *(uint64_t*) (second);
 	}
 	return false;
 }
 
 inline bool equals(char* first, char* second, uint32_t kmer_length) {
-	if (kmer_length == 32) {
+	if (kmer_length <= 32) {
 		return *(uint64_t*) (first) == *(uint64_t*) (second);
 	}
 	return false;

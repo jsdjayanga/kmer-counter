@@ -450,7 +450,7 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
 			kmerLength);
 
-	//dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
+//	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
 	// Sort step
 //	sortKmers(gpuStream->_d_output, kmerLength, outputSize, gpuStream->stream);
@@ -470,7 +470,7 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 
 	//printKmerResult(d_output, outputSize, kmerLength);
 	printf("After Sort\n");
-//	dumpKmersWithLengthToConsoleHost(h_output, lineLength, outputSize, kmerLength);
+//	dumpKmersWithLengthToConsoleHost(gpuStream->_h_output, lineLength, outputSize, kmerLength);
 
 
 //	return size;
@@ -593,10 +593,10 @@ void dumpKmersWithLengthToConsoleHost(char* data, int64_t lineLength, int64_t ou
 		entryLength++;
 	}
 	entryLength *= 8;
-	entryLength += 4;
+	entryLength += 8;
 
 	for (int64_t index = 0; index < outputSize; index += entryLength) {
-		int kmerBytes = entryLength - 4;
+		int kmerBytes = entryLength - 8;
 		int i = index;
 		for (; i < index + kmerBytes; i += 8) {
 			uint64_t value = 0;
@@ -605,9 +605,9 @@ void dumpKmersWithLengthToConsoleHost(char* data, int64_t lineLength, int64_t ou
 			printf(" %" PRIu64 " ", value);
 		}
 
-		uint32_t count = 0;
-		memcpy(&count, &data[i], sizeof(uint32_t));
-		printf(" %u\n", count);
+		uint64_t count = 0;
+		memcpy(&count, &data[i], sizeof(uint64_t));
+		printf(" %" PRIu64 "\n", count);
 	}
 }
 
