@@ -153,26 +153,26 @@ __global__ void ShrinkAndPackHashTable(KmerKeyValue<key_size>* d_input, char* d_
 //	printf("=================================CreateSortedHostData index=%" PRIu64 ",l=%" PRIu32 ", r=%" PRIu32 ", lv=%" PRIu64 ", rv=%" PRIu64 "\n",
 //			index, l, r, *(uint64_t*)&d_input[index + l], *(uint64_t*)&d_input[index + r]);
 	//&& ((index + l) <= kmer_db_max_record_count) && ((index + r) <= kmer_db_max_record_count)
-	uint64_t count = 0;
-	if (l > r) {
-		count++;
-	} else {
+//	uint64_t count = 0;
+//	if (l > r) {
+//		count = l;
+//	} else {
 		while(l < r) {
-			count++;
+//			count++;
 			memcpy(&d_input[index + l], &d_input[index + r], sizeof(KmerKeyValue<key_size>));
 			memset(&d_input[index + r], 0, sizeof(KmerKeyValue<key_size>));
 			l = firstFreePosition(d_input + index, keys_per_thread, l + 1);
 			r = lastOccupiedPosition(d_input + index, keys_per_thread, r - 1);
 		}
-	}
+//	}
 
 //	printf("=================last valid index = %" PRIu64 "\n", l);
 
-	if (count > 0) {
+//	if (count > 0) {
 //		printf("=================Count = %" PRIu64 ", index=%" PRIu64 "\n", count, index);
-		uint64_t oldValue = atomicAdd((unsigned long long int*)output_count, (unsigned long long int)count);
-		memcpy(d_output + oldValue * sizeof(KmerKeyValue<key_size>), (char*)(d_input + index), sizeof(KmerKeyValue<key_size>) * count);
-	}
+		uint64_t oldValue = atomicAdd((unsigned long long int*)output_count, (unsigned long long int)l);
+		memcpy(d_output + oldValue * sizeof(KmerKeyValue<key_size>), (char*)(d_input + index), sizeof(KmerKeyValue<key_size>) * l);
+//	}
 
 	__syncthreads();
 //	printf("=================last valid index = %" PRIu64 ", oldValue=%" PRIu64 "\n", l, oldValue);
@@ -253,7 +253,7 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 	//=================================================
 
 	uint32_t threads_per_block = 512;// 512;
-	uint32_t block_count = 1024;// 2048;
+	uint32_t block_count = 2048;// 2048;
 	uint32_t keys_per_thread = kmer_db_max_record_count / (threads_per_block * block_count) + 1;
 			// (((kmer_db_max_record_count + block_count - 1) / block_count) + threads_per_block - 1) / threads_per_block;
 
@@ -303,7 +303,7 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 	char* data = new char[count * sizeof(KmerKeyValue<key_size>)];
 	CUDA_CHECK_RETURN(cudaMemcpy(data, d_output, count * sizeof(KmerKeyValue<key_size>), cudaMemcpyDeviceToHost));
 
-//	for (uint64_t i = 0; i < kmer_db_max_record_count * sizeof(KmerKeyValue<key_size>); i += sizeof(KmerKeyValue<key_size>)) {
+//	for (uint64_t i = 0; i < count * sizeof(KmerKeyValue<key_size>); i += sizeof(KmerKeyValue<key_size>)) {
 //		if (*(uint64_t*)(data + i + sizeof(KmerKeyValue<key_size>) - sizeof(uint64_t)) > 0) {
 //			printf("index=%" PRIu64 ", val=%" PRIu64 ", count=%" PRIu64 "\n", i, *(uint64_t*)(data + i), *(uint64_t*)(data + i + sizeof(KmerKeyValue<key_size>) - sizeof(uint64_t)));
 //		}
