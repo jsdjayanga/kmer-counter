@@ -41,6 +41,10 @@ private:
     uint32_t _kmer_store_size;
     uint32_t _kmer_length;
     uint32_t _key_size_in_longs;
+
+    char* _buffer;
+	uint64_t _buffer_index;
+	uint64_t _buffer_size;
 };
 
 #endif /* SORTEDKMERMERGER_H */

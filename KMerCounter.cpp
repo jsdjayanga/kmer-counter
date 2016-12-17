@@ -55,6 +55,8 @@ KMerCounter::KMerCounter(Options* options) {
 	_temp_file_id = 0;
 
 	_sorted_kmer_merger = new SortedKmerMerger(options->GetKmerLength());
+
+	_input_data.clear();
 }
 
 KMerCounter::KMerCounter(const KMerCounter& orig) {
@@ -243,6 +245,24 @@ void KMerCounter::DumpResults() {
 	}
 }
 
+void KMerCounter::ReadInputData(InputFileHandler* inputFileHandler, int64_t chunkSize) {
+	FASTQData* fastqData = inputFileHandler->read(chunkSize);
+	while(fastqData != NULL) {
+
+		if (_input_data.size() > 20) {
+			this_thread::sleep_for(chrono::milliseconds(50));
+		}
+
+		_rec_mtx_input.lock();
+		_input_data.push_back(fastqData);
+		_rec_mtx_input.unlock();
+		fastqData = inputFileHandler->read(chunkSize);
+	}
+
+	printf("======================================Input completed\n");
+	_input_complete = true;
+}
+
 void KMerCounter::Start() {
 	uint32_t readId = 0;
 	InputFileHandler* inputFileHandler = new InputFileHandler(_options->GetInputFileDirectory());
@@ -251,36 +271,52 @@ void KMerCounter::Start() {
 	int64_t chunkSize = GetChunkSize(inputFileHandler->getLineLength(), _options->GetKmerLength(),
 			_options->GetGpuMemoryLimit());
 	FASTQData* fastqData = inputFileHandler->read(chunkSize);
+	_input_data.push_back(fastqData);
 
 	_gpuStreams = PrepareGPU(_streamCount, fastqData->getSize(), inputFileHandler->getLineLength(), _options->GetKmerLength());
 	for (int i = 0; i < _streamCount; i++) {
 		_vacantStreams.insert(_gpuStreams[i]);
 	}
 
-	while (fastqData != NULL) {
+	thread input_thread(&KMerCounter::ReadInputData, this, inputFileHandler, chunkSize);
 
-		readId++;
-		// TODO : Pump data to GPU
-		//cout << "====" << fastqData->getLineLength() << endl;
-		//_fileDump->dump(fastqData);
+	uint64_t line_length = inputFileHandler->getLineLength();
 
-		if (fastqData->getSize() > 0 && fastqData->getSize() >= inputFileHandler->getLineLength()) {
-			while (_vacantStreams.empty()) {
-				this_thread::sleep_for(chrono::milliseconds(50));
+	while (_input_complete == false || !_input_data.empty()) {
+		list<FASTQData*> temp;
+
+		this_thread::sleep_for(chrono::milliseconds(50));
+		_rec_mtx_input.lock();
+		temp.splice(temp.begin(), _input_data);
+		_rec_mtx_input.unlock();
+
+		for (list<FASTQData*>::iterator ite = temp.begin(); ite != temp.end(); ite++) {
+
+			readId++;
+			// TODO : Pump data to GPU
+			//cout << "====" << fastqData->getLineLength() << endl;
+			//_fileDump->dump(fastqData);
+
+			if ((*ite)->getSize() > 0 && (*ite)->getSize() >= line_length) {
+				while (_vacantStreams.empty()) {
+					this_thread::sleep_for(chrono::milliseconds(50));
+				}
+
+				_rec_mtx.lock();
+				GPUStream* gpuStream = *(_vacantStreams.begin());
+				_vacantStreams.erase(_vacantStreams.begin());
+				_workerThreads.push_back(thread(&KMerCounter::dispatchWork, this, gpuStream, *ite, line_length, readId));
+				_rec_mtx.unlock();
 			}
-
-			_rec_mtx.lock();
-			GPUStream* gpuStream = *(_vacantStreams.begin());
-			_vacantStreams.erase(_vacantStreams.begin());
-			_workerThreads.push_back(thread(&KMerCounter::dispatchWork, this, gpuStream, fastqData, inputFileHandler->getLineLength(), readId));
-			_rec_mtx.unlock();
 		}
 
-		fastqData = inputFileHandler->read(chunkSize);
+		//fastqData = inputFileHandler->read(chunkSize);
 	}
 
-	printf("======================================Input completed\n");
-	_input_complete = true;
+	input_thread.join();
+
+//	printf("======================================Input completed\n");
+//	_input_complete = true;
 
 	for (std::list<thread>::iterator it=_workerThreads.begin(); it != _workerThreads.end(); ++it) {
 	    (*it).join();;

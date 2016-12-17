@@ -23,7 +23,7 @@ SortedKmerFile::SortedKmerFile(std::string filename, uint32_t kmerLength) {
     this->_kmerLength = kmerLength;
     this->_kmerStoreLength = (((this->_kmerLength + 31) / 32) * sizeof (uint64_t)) + sizeof (uint32_t);
 
-    this->_buffer_size = 12 * 1024 * 1024;
+    this->_buffer_size = 24 * 1024 * 1024;
     this->_buffer_index = 0;
     this->_buffer_valid_index = 0;
 

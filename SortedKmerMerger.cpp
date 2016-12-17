@@ -14,6 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include "KMerCounterUtils.h"
+#include <cstring>
 
 #include "SortedKmerMerger.h"
 
@@ -28,6 +29,10 @@ SortedKmerMerger::SortedKmerMerger(uint32_t kmer_length) {
 	}
 	_kmer_store_size = _key_size_in_longs * 8;
 	_kmer_store_size += 8;
+
+	_buffer_index = 0;
+	_buffer_size = (uint64_t)1 * 1024 * 1024 * 1024;
+	_buffer = new char[_buffer_size];
 }
 
 SortedKmerMerger::SortedKmerMerger(const SortedKmerMerger& orig) {
@@ -45,15 +50,31 @@ void SortedKmerMerger::Merge(std::list<std::pair<char*, uint64_t> > kmer_list, s
 
     ofstream output_file(filename.c_str());
     char* data = GetLowest(sorted_kmer_arrays);
+    uint64_t result_kmer_store_size = _kmer_store_size - sizeof(uint64_t) + sizeof(uint32_t);
     while (data != NULL) {
-        output_file.write(data, _kmer_store_size - sizeof(uint64_t));
-        uint32_t count = (uint32_t)*(uint64_t*)(data + _kmer_store_size - sizeof(uint64_t));
-        output_file.write((char*)&count, sizeof(uint32_t));
+
+    	if (_buffer_index + _kmer_store_size > _buffer_size) {
+			output_file.write(_buffer, _buffer_index);
+			_buffer_index = 0;
+		}
+
+    	memcpy(_buffer + _buffer_index, data, _kmer_store_size - sizeof(uint64_t));
+		uint32_t count = (uint32_t)*(uint64_t*)(data + _kmer_store_size - sizeof(uint64_t));
+		memcpy(_buffer + _buffer_index + _kmer_store_size - sizeof(uint64_t), (char*)&count, sizeof(uint32_t));
+		_buffer_index += result_kmer_store_size;
+
+//        output_file.write(data, _kmer_store_size - sizeof(uint64_t));
+//        uint32_t count = (uint32_t)*(uint64_t*)(data + _kmer_store_size - sizeof(uint64_t));
+//        output_file.write((char*)&count, sizeof(uint32_t));
         
 //        cout << "F" << ":" << *(uint64_t*)data << "|" << count << endl;
         
         data = GetLowest(sorted_kmer_arrays);
     }
+
+    output_file.write(_buffer, _buffer_index);
+    _buffer_index = 0;
+
     output_file.close();
 
     for (std::list<std::pair<char*, uint64_t> >::iterator it = kmer_list.begin(); it != kmer_list.end(); ++it) {

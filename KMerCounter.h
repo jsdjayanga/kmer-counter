@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include "CountingHashTable.h"
 #include "SortedKmerMerger.h"
+#include "InputFileHandler.h"
 
 
 using namespace std;
@@ -92,6 +93,7 @@ private:
     void DumpResults();
 
     void WriteToFile(list<std::pair<char*, uint64_t>> sorted_data, string filename);
+    void ReadInputData(InputFileHandler* inputFileHandler, int64_t chunkSize);
 
 
     bool _processing_done;
@@ -107,6 +109,9 @@ private:
     uint64_t _temp_file_id;
 
     SortedKmerMerger* _sorted_kmer_merger;
+
+    list<FASTQData*> _input_data;
+    recursive_mutex _rec_mtx_input;
 };
 
 
