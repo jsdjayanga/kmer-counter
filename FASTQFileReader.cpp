@@ -60,7 +60,7 @@ FASTQData* FASTQFileReader::readData(int64_t chunkSize) {
             const char* cline = temp.c_str();
 
             if (chunk_offset + temp.length() < chunkSize) {
-                strncpy(&data[chunk_offset], cline, temp.length());
+                memcpy(&data[chunk_offset], cline, temp.length());
                 chunk_offset += temp.length();
 
 //                if (chunk_offset < 200) {
