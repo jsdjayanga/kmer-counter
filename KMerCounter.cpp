@@ -28,7 +28,7 @@ KMerCounter::KMerCounter(Options* options) {
 	_options = options;
 	_fileDump = new FileDump(_options->getTempFileLocation());
 	_gpuStreams = NULL;
-	_streamCount = 8;
+	_streamCount = 4;
 
 	uint64_t kmerLength = options->GetKmerLength();
 	_key_size_in_longs = kmerLength / 32;
@@ -46,7 +46,7 @@ KMerCounter::KMerCounter(Options* options) {
 	_input_complete = false;
 	_processing_done = false;
 
-	_countingHashTable = new CountingHashTable<1>(0, 1, (uint64_t)2 * 1000 * 1000 * 1000, (uint64_t)500 * 1000 * 1000);
+	_countingHashTable = new CountingHashTable<1>(0, 1, (uint64_t)2 * 1024 * 1024 * 1024, (uint64_t)500 * 1000 * 1000);
 
 	_sorted_data.clear();
 	_sorted_data_size = 0;
