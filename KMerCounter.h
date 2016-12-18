@@ -13,8 +13,8 @@
 
 #pragma once
 
-#include <tbb/concurrent_hash_map.h>
-#include <tbb/concurrent_unordered_map.h>
+//#include <tbb/concurrent_hash_map.h>
+//#include <tbb/concurrent_unordered_map.h>
 #include <iostream>
 #include <thread>
 #include <mutex>
@@ -30,7 +30,7 @@
 
 
 using namespace std;
-using namespace tbb;
+//using namespace tbb;
 
 extern uint32_t __kmer_record_size;
 
@@ -98,7 +98,7 @@ private:
 
     bool _processing_done;
 
-    concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
+//    concurrent_hash_map<char*, uint32_t, MyHasher> _con_hashtable;
     //concurrent_unordered_map<char*, uint32_t, MyHasher, eqstr> _con_uo_hashtable;
 
     CountingHashTable<1>* _countingHashTable;
