@@ -220,7 +220,7 @@ public:
 
 template<uint32_t key_size>
 char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint64_t* output_count, uint64_t kmer_db_max_record_count, uint64_t& size) {
-	printf("=================================CreateSortedHostData\n");
+//	printf("=================================CreateSortedHostData\n");
 
 //	char* temp = new char[kmer_db_max_record_count * 16];
 //	CUDA_CHECK_RETURN(cudaMemcpy(temp, d_input, kmer_db_max_record_count * 16, cudaMemcpyDeviceToHost));
@@ -288,8 +288,8 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 	uint64_t count = 0;
 	CUDA_CHECK_RETURN(cudaMemcpy(&count, (char*)output_count, sizeof(uint64_t), cudaMemcpyDeviceToHost));
 
-	printf("=================================CreateSortedHostData packed record count=%" PRIu64 ", size KMer32=%" PRIu64 ", key-size=%i\n",
-			count, sizeof(KMer64), key_size);
+//	printf("=================================CreateSortedHostData packed record count=%" PRIu64 ", size KMer32=%" PRIu64 ", key-size=%i\n",
+//			count, sizeof(KMer64), key_size);
 
 	if (key_size == 1) {
 		thrust::sort(thrust::cuda::par, (KMer32*)d_output, ((KMer32*)(d_output)) + count, KMer32Comparator1());
@@ -317,7 +317,7 @@ char* CreateSortedHostData(KmerKeyValue<key_size>* d_input, char* d_output, uint
 template<uint32_t key_size>
 void InsertToHashTable(KmerKeyValue<key_size>* d_input, uint32_t no_of_keys_per_stream, cudaStream_t stream,
 		KmerKeyValue<key_size>* kmer_db, uint64_t kmer_db_max_record_count, uint64_t* cuda_counters) {
-	printf("Initiating insertion kernel for stream : %"PRIu64", key-size=%i\n", (uint64_t) stream, key_size);
+//	printf("Initiating insertion kernel for stream : %"PRIu64", key-size=%i\n", (uint64_t) stream, key_size);
 
 
 	const uint32_t threads_per_block = 512;

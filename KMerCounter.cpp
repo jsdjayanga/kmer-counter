@@ -67,7 +67,7 @@ KMerCounter::~KMerCounter() {
 }
 
 void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId) {
-	printf("Dispatching work to %i, readid=%i", gpuStream, readId);
+//	printf("Dispatching work to %i, readid=%i", gpuStream, readId);
 
 	uint64_t outputSize = processKMers(gpuStream, fastqData->getData(), _options->GetKmerLength(), fastqData->getSize(),
 						lineLength, readId, *_fileDump);
@@ -164,7 +164,7 @@ void KMerCounter::DumpResults() {
 	while (!_processing_done) {
 		this_thread::sleep_for(chrono::seconds(1));
 		_countingHashTable->UpdateCounters();
-		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _countingHashTable->GetSuccessCount());
+//		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _countingHashTable->GetSuccessCount());
 //		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++%"PRIu64"\n", _con_uo_hashtable.size());
 
 		int32_t count = 0;
@@ -174,10 +174,10 @@ void KMerCounter::DumpResults() {
 			}
 		}
 
-		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++waiting count++++%"PRIu64"\n", count);
+//		printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++waiting count++++%"PRIu64"\n", count);
 
 		if (_countingHashTable->isFull()) {
-			printf("======================================Dumping files\n");
+//			printf("======================================Dumping files\n");
 //			_countingHashTable->TempDump();
 //			_countingHashTable->Init();
 
@@ -189,7 +189,7 @@ void KMerCounter::DumpResults() {
 //			for (int i = 0; i < 276 * 16; i += 16) {
 //				printf("%" PRIu64 " %" PRIu64 "\n", *(uint64_t*)(data + i), *(uint64_t*)(data + i + 8));
 //			}
-			printf("======================================Dumping files completed\n");
+//			printf("======================================Dumping files completed\n");
 		}
 
 		if (_sorted_data_size > _sorted_data_max_size) {
@@ -259,7 +259,7 @@ void KMerCounter::ReadInputData(InputFileHandler* inputFileHandler, int64_t chun
 		fastqData = inputFileHandler->read(chunkSize);
 	}
 
-	printf("======================================Input completed\n");
+//	printf("======================================Input completed\n");
 	_input_complete = true;
 }
 

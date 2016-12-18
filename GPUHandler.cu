@@ -396,11 +396,11 @@ uint64_t reduceKMers(char* h_output, uint64_t kmerLength, uint64_t outputSize) {
 
 int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength, int64_t inputSize, int64_t lineLength, uint32_t readId,
 		FileDump& fileDump) {
-	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
-	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
+//	printf("Processing k-mers klen=%"PRIu64", inSize=%"PRIu64","
+//	" liLen=%"PRIu64"\n", kmerLength, inputSize, lineLength);
 
 	uint64_t outputSize = calculateOutputSize(inputSize, lineLength, kmerLength);
-	printf("Output size =============%"PRIu64"\n", outputSize);
+//	printf("Output size =============%"PRIu64"\n", outputSize);
 
 
 	memset(gpuStream->_h_output, 0, outputSize);
@@ -419,9 +419,9 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 
 	for (int32_t ite = 0; ite < count; ite++) {
 		if (totalThread * lineLength * ite < inputSize) {
-			printf(
-					"=========================ite %i, index=%"PRIu64", inputSize=%"PRIu64", lineLength=%"PRIu64", totalThreads=%"PRIu64"\n",
-					ite, totalThread * lineLength * ite, inputSize, lineLength, totalThread);
+//			printf(
+//					"=========================ite %i, index=%"PRIu64", inputSize=%"PRIu64", lineLength=%"PRIu64", totalThreads=%"PRIu64"\n",
+//					ite, totalThread * lineLength * ite, inputSize, lineLength, totalThread);
 
 			bitEncode<<<blockCount, blockThreadCount, 0, gpuStream->stream>>>(&gpuStream->_d_input[totalThread * lineLength * ite],
 					&gpuStream->_d_filter[totalThread * lineLength * ite],
@@ -447,8 +447,8 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 		}
 	}
 
-	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
-			kmerLength);
+//	printf("Before Sort lineLength=%"PRIu64", outputSize=%"PRIu64", kmerLength=%"PRIu64"\n", lineLength, outputSize,
+//			kmerLength);
 
 //	dumpKmersWithLengthToConsole(d_output, lineLength, outputSize, kmerLength);
 
@@ -469,7 +469,7 @@ int64_t processKMers(GPUStream* gpuStream, const char* input, int64_t kmerLength
 //	printBitEncodedResult(d_input, d_filter, inputSize, lineLength);
 
 	//printKmerResult(d_output, outputSize, kmerLength);
-	printf("After Sort\n");
+//	printf("After Sort\n");
 //	dumpKmersWithLengthToConsoleHost(gpuStream->_h_output, lineLength, outputSize, kmerLength);
 
 
