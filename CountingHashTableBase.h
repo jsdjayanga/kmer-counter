@@ -192,10 +192,12 @@ public:
 //				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count < no_of_keys / 2) {
 		_rec_mtx.lock();
 
+		UpdateCounters();
+
 //		printf("=================inserting, no_of_keys=%" PRIu64 ",_kmer_db_max_record_count=%" PRIu64 ", _temp_count=%" PRIu64 "\n",
 //						no_of_keys, _kmer_db_max_record_count, _temp_count);
 
-		if (no_of_keys * 1.25 > _kmer_db_max_record_count - _temp_count
+		if (no_of_keys * 1.25 > _kmer_db_max_record_count - _kmer_db_record_count
 				|| _failed_kmer_max_entry_count - _failed_kmer_entries_count < no_of_keys / 2) {
 			// there is a possibility that all keys would not get inserted.
 
@@ -216,7 +218,7 @@ public:
 
 		UpdateCounters();
 
-		printf("=================insert completed\n");
+//		printf("=================insert completed\n");
 
 		return true;
 	}
@@ -273,9 +275,9 @@ public:
 		}
 
 		for (uint32_t i = 0; i < _cuda_counters_per_stream * _no_of_streams; i++) {
-			printf("========================%"PRIu64"\n", _h_cuda_counters[i]);
+//			printf("========================%"PRIu64"\n", _h_cuda_counters[i]);
 		}
-		printf("===========s:%"PRIu64", f:%"PRIu64"\n", _kmer_db_record_count, _failed_kmer_entries_count);
+//		printf("===========s:%"PRIu64", f:%"PRIu64"\n", _kmer_db_record_count, _failed_kmer_entries_count);
 	}
 
 	uint64_t GetSuccessCount() {
@@ -350,7 +352,7 @@ public:
 					output_file = &output_file_3;
 					break;
 				default:
-					printf("ERROR: Wring starting letter : %i", first_letter);
+//					printf("ERROR: Wring starting letter : %i", first_letter);
 					continue;
 				}
 				output_file->write((data + j), sizeof(KmerKeyValue<key_size>) - sizeof(KmerKey<key_size>));
