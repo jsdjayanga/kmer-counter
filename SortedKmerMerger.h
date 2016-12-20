@@ -18,12 +18,16 @@
 #include <stdint.h>
 #include <list>
 
+#pragma pack(1)
 struct SortedKmerArray {
 
     SortedKmerArray(char* data, uint64_t length) {
         _data = data;
         _index = 0;
         _length = length;
+    }
+    ~SortedKmerArray() {
+    	delete[] _data;
     }
     char* _data;
     uint64_t _index;
@@ -37,7 +41,7 @@ public:
     virtual ~SortedKmerMerger();
     void Merge(std::list<std::pair<char*, uint64_t> > kmer_list, std::string filename);
 private:
-    char* GetLowest(std::list<SortedKmerArray*>& sorted_kmer_arrays);
+    char* GetLowest(std::list<SortedKmerArray*>& sorted_kmer_arrays, std::list<SortedKmerArray*>& ararys_to_delete);
     uint32_t _kmer_store_size;
     uint32_t _kmer_length;
     uint32_t _key_size_in_longs;

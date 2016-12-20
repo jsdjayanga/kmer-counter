@@ -26,7 +26,7 @@ public:
     virtual ~SortedKmerFileMerger();
     void Merge(std::list<std::string> files, uint32_t kmer_length);
 private:
-    SortedKmerFile* GetLowest(std::list<SortedKmerFile*>& sorted_kmer_files, uint32_t kmer_length, uint32_t kmer_store_size);
+    SortedKmerFile* GetLowest(std::list<SortedKmerFile*>& sorted_kmer_files, std::list<SortedKmerFile*>& files_to_delete, uint32_t kmer_length, uint32_t kmer_store_size);
     std::string _output_filename;
     char* _buffer;
     uint64_t _buffer_index;

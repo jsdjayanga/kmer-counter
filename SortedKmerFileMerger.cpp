@@ -36,15 +36,19 @@ SortedKmerFileMerger::SortedKmerFileMerger(const SortedKmerFileMerger& orig) {
 }
 
 SortedKmerFileMerger::~SortedKmerFileMerger() {
+	delete[] _buffer;
 }
 
 void SortedKmerFileMerger::Merge(list<string> files, uint32_t kmer_length) {
     list<SortedKmerFile*> sorted_kmer_files;
+    list<SortedKmerFile*> files_to_delete;
     
     for (list<string>::iterator ite = files.begin(); ite != files.end(); ite++) {
         SortedKmerFile* sf = new SortedKmerFile(*ite, kmer_length);
         if (sf->Peek() != NULL) {
             sorted_kmer_files.push_back(sf);
+        } else {
+        	delete sf;
         }
     }
     
@@ -56,7 +60,7 @@ void SortedKmerFileMerger::Merge(list<string> files, uint32_t kmer_length) {
 	kmer_store_size += 4; // This should be 4: it is read from the file
 
     ofstream output_file(_output_filename.c_str());
-    SortedKmerFile* lowest = GetLowest(sorted_kmer_files, kmer_length, kmer_store_size);
+    SortedKmerFile* lowest = GetLowest(sorted_kmer_files, files_to_delete, kmer_length, kmer_store_size);
     while (lowest != NULL) {
         
         if (_buffer_index + kmer_store_size > _buffer_size) {
@@ -77,16 +81,20 @@ void SortedKmerFileMerger::Merge(list<string> files, uint32_t kmer_length) {
         
         lowest->Pop();
          
-        lowest = GetLowest(sorted_kmer_files, kmer_length, kmer_store_size);
+        lowest = GetLowest(sorted_kmer_files, files_to_delete, kmer_length, kmer_store_size);
     }
     
 	output_file.write(_buffer, _buffer_index);
 	_buffer_index = 0;
-    
+
     output_file.close();
+
+    for (list<SortedKmerFile*>::iterator it = files_to_delete.begin(); it != files_to_delete.end(); ++it) {
+		delete *it;
+	}
 }
 
-SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sorted_kmer_files, uint32_t kmer_length, uint32_t kmer_store_size) {
+SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sorted_kmer_files, list<SortedKmerFile*>& files_to_delete, uint32_t kmer_length, uint32_t kmer_store_size) {
     if (sorted_kmer_files.empty()) {
         return NULL;
     }
@@ -101,6 +109,7 @@ SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sort
         if (lowest->Peek() == NULL) {
             list<SortedKmerFile*>::iterator ite_to_delete = ite;
             ite++;
+            files_to_delete.push_back(*ite_to_delete);
             sorted_kmer_files.erase(ite_to_delete);
             lowest = current;
             continue;
@@ -109,6 +118,7 @@ SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sort
         if (current->Peek() == NULL) {
             list<SortedKmerFile*>::iterator ite_to_delete = ite;
             ite++;
+            files_to_delete.push_back(*ite_to_delete);
             sorted_kmer_files.erase(ite_to_delete);
             continue;
         }
@@ -128,6 +138,7 @@ SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sort
             if (current->Peek() == NULL) {
                 list<SortedKmerFile*>::iterator ite_to_delete = ite;
                 ite++;
+                files_to_delete.push_back(*ite_to_delete);
                 sorted_kmer_files.erase(ite_to_delete);
                 continue;
             }
@@ -138,5 +149,7 @@ SortedKmerFile* SortedKmerFileMerger::GetLowest(std::list<SortedKmerFile*>& sort
     if (lowest->Peek() != NULL) {
         return lowest;
     }
+
+    files_to_delete.push_back(lowest);
     return NULL;
 }

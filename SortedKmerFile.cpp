@@ -38,6 +38,8 @@ SortedKmerFile::SortedKmerFile(const SortedKmerFile& orig) {
 }
 
 SortedKmerFile::~SortedKmerFile() {
+	delete[] _buffer;
+	_file_stream.close();
 }
 
 void SortedKmerFile::Read() {

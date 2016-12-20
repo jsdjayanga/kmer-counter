@@ -516,6 +516,7 @@ void FreeGPU(GPUStream** streams, uint32_t streamCount) {
 		cudaErrorCheck(cudaFree(stream->_d_input));
 		cudaErrorCheck(cudaFree(stream->_d_output));
 		cudaErrorCheck(cudaFree(stream->_d_filter));
+		delete stream;
 	}
 }
 

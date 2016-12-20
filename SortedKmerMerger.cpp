@@ -39,17 +39,19 @@ SortedKmerMerger::SortedKmerMerger(const SortedKmerMerger& orig) {
 }
 
 SortedKmerMerger::~SortedKmerMerger() {
+	delete[] _buffer;
 }
 
 void SortedKmerMerger::Merge(std::list<std::pair<char*, uint64_t> > kmer_list, std::string filename) {
     list<SortedKmerArray*> sorted_kmer_arrays;
+    list<SortedKmerArray*> ararys_to_delete;
 
     for (std::list<std::pair<char*, uint64_t> >::iterator it = kmer_list.begin(); it != kmer_list.end(); ++it) {
         sorted_kmer_arrays.push_back(new SortedKmerArray(it->first, it->second));
     }
 
     ofstream output_file(filename.c_str());
-    char* data = GetLowest(sorted_kmer_arrays);
+    char* data = GetLowest(sorted_kmer_arrays, ararys_to_delete);
     uint64_t result_kmer_store_size = _kmer_store_size - sizeof(uint64_t) + sizeof(uint32_t);
     while (data != NULL) {
 
@@ -69,7 +71,7 @@ void SortedKmerMerger::Merge(std::list<std::pair<char*, uint64_t> > kmer_list, s
         
 //        cout << "F" << ":" << *(uint64_t*)data << "|" << count << endl;
         
-        data = GetLowest(sorted_kmer_arrays);
+        data = GetLowest(sorted_kmer_arrays, ararys_to_delete);
     }
 
     output_file.write(_buffer, _buffer_index);
@@ -77,12 +79,12 @@ void SortedKmerMerger::Merge(std::list<std::pair<char*, uint64_t> > kmer_list, s
 
     output_file.close();
 
-    for (std::list<std::pair<char*, uint64_t> >::iterator it = kmer_list.begin(); it != kmer_list.end(); ++it) {
-		delete[] it->first;
+    for (list<SortedKmerArray*>::iterator it = ararys_to_delete.begin(); it != ararys_to_delete.end(); ++it) {
+		delete *it;
 	}
 }
 
-char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_arrays) {
+char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_arrays, list<SortedKmerArray*>& ararys_to_delete) {
     if (sorted_kmer_arrays.empty()) {
         return NULL;
     }
@@ -108,6 +110,7 @@ char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_array
             if (current->_index >= current->_length) {
                 list<SortedKmerArray*>::iterator ite_to_delete = ite;
                 ite++;
+                ararys_to_delete.push_back(*ite_to_delete);
                 sorted_kmer_arrays.erase(ite_to_delete);
                 continue;
             }
@@ -117,8 +120,10 @@ char* SortedKmerMerger::GetLowest(std::list<SortedKmerArray*>& sorted_kmer_array
 
     uint64_t lowest_index = lowest->_index;
     lowest->_index += _kmer_store_size;
+    char* data = (char*) lowest->_data + lowest_index;
     if (lowest->_index >= lowest->_length) {
+    	ararys_to_delete.push_back(*lowest_ite);
         sorted_kmer_arrays.erase(lowest_ite);
     }
-    return (char*) lowest->_data + lowest_index;
+    return data;
 }

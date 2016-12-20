@@ -64,6 +64,8 @@ KMerCounter::KMerCounter(const KMerCounter& orig) {
 
 KMerCounter::~KMerCounter() {
 	delete[] _gpuStreams;
+	delete _countingHashTable;
+	delete _sorted_kmer_merger;
 }
 
 void KMerCounter::dispatchWork(GPUStream* gpuStream, FASTQData* fastqData, int64_t lineLength, uint32_t readId) {
@@ -326,13 +328,13 @@ void KMerCounter::Start() {
 
 	FreeGPU(_gpuStreams, _streamCount);
 
-	for (int i = 0; i < _streamCount; i++) {
-		GPUStream* stream = _gpuStreams[i];
-		for (list<char*>::iterator it=stream->_kmer_db.begin(); it != stream->_kmer_db.end(); ++it) {
-			delete[] (*it);
-		}
-		delete stream;
-	}
+//	for (int i = 0; i < _streamCount; i++) {
+//		GPUStream* stream = _gpuStreams[i];
+//		for (list<char*>::iterator it=stream->_kmer_db.begin(); it != stream->_kmer_db.end(); ++it) {
+//			delete[] (*it);
+//		}
+//		delete stream;
+//	}
 	delete inputFileHandler;
 
 	// Count KMers with Merged Files
